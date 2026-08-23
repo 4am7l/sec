@@ -7,16 +7,6 @@ import string
 from datetime import datetime
 from cryptography.fernet import Fernet
 
-import time
-
-if "last_rerun" not in st.session_state:
-    st.session_state.last_rerun = time.time()
-
-if time.time() - st.session_state.last_rerun > 3:
-    st.session_state.last_rerun = time.time()
-    st.rerun()
-
-
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
 KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
 LOG_FILE = os.path.join(os.path.dirname(__file__), "audit.log")
@@ -383,11 +373,12 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    msgs_to_burn = []
-                    chat_area = st.container()
-
-                    with chat_area:
-                        for m in data["messages"]:
+                    # تحديث تلقائي خفيف وسلس لمنطقة المحادثة فقط دون إعادة تحميل باقي الصفحة
+                    @st.fragment(run_every="2s")
+                    def render_live_chat():
+                        live_data = load_data()
+                        msgs_to_burn = []
+                        for m in live_data["messages"]:
                             f_user, t_user = m.get("from"), m.get("to")
                             if (f_user == current_user and t_user == target_chat) or (f_user == target_chat and t_user == current_user):
                                 try:
@@ -416,13 +407,15 @@ else:
                                     if m.get("burn"):
                                         msgs_to_burn.append(m)
 
-                    st.markdown("<div style='clear:both;'></div><br>", unsafe_allow_html=True)
+                        if msgs_to_burn:
+                            for bm in msgs_to_burn:
+                                live_data["messages"].remove(bm)
+                                log_audit("MESSAGE_BURNED", f"Burned msg from '{bm['from']}' to '{bm['to']}'.")
+                            save_data(live_data)
 
-                    if msgs_to_burn:
-                        for bm in msgs_to_burn:
-                            data["messages"].remove(bm)
-                            log_audit("MESSAGE_BURNED", f"Burned msg from '{bm['from']}' to '{bm['to']}'.")
-                        save_data(data)
+                    render_live_chat()
+
+                    st.markdown("<div style='clear:both;'></div><br>", unsafe_allow_html=True)
 
                     with st.form(key="send_form", clear_on_submit=True):
                         c_input, c_chk, c_btn = st.columns([3, 1, 1])
@@ -434,21 +427,22 @@ else:
                             btn_sub = st.form_submit_button("SEND 🚀", use_container_width=True)
 
                         if btn_sub:
-                            recipient_blocked = data["users"][target_chat].get("blocked", [])
+                            fresh_data = load_data()
+                            recipient_blocked = fresh_data["users"][target_chat].get("blocked", [])
                             if current_user in recipient_blocked:
                                 st.error("User has blocked you.")
                             elif not in_msg.strip():
                                 st.warning("Cannot send an empty message.")
                             else:
                                 enc_content = cipher.encrypt(in_msg.encode()).decode()
-                                data["messages"].append({
+                                fresh_data["messages"].append({
                                     "from": current_user,
                                     "to": target_chat,
                                     "content": enc_content,
                                     "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                     "burn": chk_burn
                                 })
-                                save_data(data)
+                                save_data(fresh_data)
                                 log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}'.")
                                 st.rerun()
 
