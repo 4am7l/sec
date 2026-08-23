@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import json
 import os
 import hashlib
@@ -374,7 +375,6 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # تحديد حاوية شات ثابتة الارتفاع مع سكرول تلقائي نحو الأسفل
                     chat_container = st.container(height=420)
 
                     @st.fragment(run_every="2s")
@@ -411,32 +411,51 @@ else:
 
                                     bubble_class = "bubble-sent" if is_mine else "bubble-received"
                                     
-                                    st.markdown(f"""
-                                    <div class="{bubble_class}">
-                                        {txt_display}{burn_str if txt_display else ''}
-                                        <span class="bubble-time">{time_str}</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    if txt_display:
+                                        st.markdown(f"""
+                                        <div class="{bubble_class}">
+                                            {txt_display}{burn_str}
+                                            <span class="bubble-time">{time_str}</span>
+                                        </div>
+                                        """, unsafe_allow_html=True)
 
                                     if file_bytes:
-                                        st.download_button(
-                                            label=f"📎 Download {file_name}",
-                                            data=file_bytes,
-                                            file_name=file_name,
-                                            mime=file_mime,
-                                            key=f"dl_{m['time']}_{f_user}"
-                                        )
+                                        with st.expander(f"📁 Attachment: {file_name}", expanded=True):
+                                            if file_mime and "image" in file_mime:
+                                                st.image(file_bytes, caption=file_name, use_container_width=True)
+                                            elif file_mime and "text" in file_mime:
+                                                try:
+                                                    st.caption(file_bytes.decode('utf-8')[:200] + "...")
+                                                except Exception:
+                                                    pass
+
+                                            st.download_button(
+                                                label=f"⬇️ Download {file_name}",
+                                                data=file_bytes,
+                                                file_name=file_name,
+                                                mime=file_mime,
+                                                key=f"dl_{m['time']}_{f_user}"
+                                            )
 
                                     if not is_mine and m.get("burn"):
                                         msgs_to_burn.append(m)
 
-                            # كود سكريبت تلقائي يحرّك الشات لأسفل الرسائل عند الوصول
-                            st.markdown("""
+                            # كود JavaScript فعّال لسحب السكرول لأسفل الحاوية تلقائياً
+                            components.html("""
                             <script>
+                                var containers = window.parent.document.querySelectorAll('div[data-testid="stElementContainer"]');
+                                containers.forEach(function(c) {
+                                    var parentBox = c.closest('div[data-id]');
+                                    if (parentBox) {
+                                        parentBox.scrollTop = parentBox.scrollHeight;
+                                    }
+                                });
                                 var chatBox = window.parent.document.querySelector('div[data-testid="stVerticalBlockBorderWrapper"]');
-                                if (chatBox) { chatBox.scrollTop = chatBox.scrollHeight; }
+                                if (chatBox) {
+                                    chatBox.scrollTop = chatBox.scrollHeight;
+                                }
                             </script>
-                            """, unsafe_allow_html=True)
+                            """, height=0)
 
                         if msgs_to_burn:
                             for bm in msgs_to_burn:
@@ -546,3 +565,4 @@ else:
                 st.code("".join(f.readlines()[-20:]))
         else:
             st.info("No audit logs found.")
+```[cite: 6]
