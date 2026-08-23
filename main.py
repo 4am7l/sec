@@ -40,6 +40,10 @@ cipher = Fernet(SECRET_KEY)
 def hash_data(value):
     return hashlib.sha256(value.encode()).hexdigest()
 
+def generate_user_id():
+    raw = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+    return f"#{raw}"
+
 def generate_recovery_key():
     raw = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
     return f"{raw[:4]}-{raw[4:]}"
@@ -56,6 +60,10 @@ def load_data():
                 udata.setdefault("role", "admin" if len(data["users"]) == 1 else "user")
                 udata.setdefault("blocked", [])
                 udata.setdefault("recovery_key", "")
+                udata.setdefault("user_id", generate_user_id())
+                udata.setdefault("friends", [])
+                udata.setdefault("friend_requests", [])
+                udata.setdefault("avatar", "")
             return data
     except Exception as e:
         st.error(f"Data read error: {e}")
@@ -184,6 +192,14 @@ st.markdown("""
         border-radius: 4px;
         margin-top: 10px;
     }
+
+    .profile-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #374151;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -243,13 +259,18 @@ if not st.session_state.current_user:
                     st.error("Passwords do not match.")
                 else:
                     rec_k = generate_recovery_key()
+                    u_id = generate_user_id()
                     assigned_role = "admin" if len(data["users"]) == 0 else "user"
 
                     data["users"][r_u] = {
                         "password": hash_data(r_p),
                         "recovery_key": hash_data(rec_k),
                         "role": assigned_role,
-                        "blocked": []
+                        "blocked": [],
+                        "user_id": u_id,
+                        "friends": [],
+                        "friend_requests": [],
+                        "avatar": ""
                     }
                     save_data(data)
                     log_audit("REGISTER_SUCCESS", f"User '{r_u}' registered.")
@@ -257,8 +278,8 @@ if not st.session_state.current_user:
                     st.success("Account created successfully!")
                     st.markdown(f"""
                     <div class="recovery-info">
-                        <strong>SAVE RECOVERY KEY:</strong><br>
-                        <code>{rec_k}</code>
+                        <strong>YOUR ID:</strong> <code>{u_id}</code><br>
+                        <strong>SAVE RECOVERY KEY:</strong> <code>{rec_k}</code>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -289,16 +310,20 @@ else:
     current_user = st.session_state.current_user
     user_info = data["users"].get(current_user, {})
     role = user_info.get("role", "user")
+    user_id = user_info.get("user_id", "#0000")
+    avatar_b64 = user_info.get("avatar", "")
 
+    if avatar_b64:
+        st.sidebar.markdown(f'<img src="data:image/png;base64,{avatar_b64}" class="profile-avatar"><br>', unsafe_allow_html=True)
     st.sidebar.markdown(f"### 👤 {current_user}")
-    st.sidebar.markdown(f"Role: `{role.upper()}`")
+    st.sidebar.markdown(f"ID: `{user_id}` | Role: `{role.upper()}`")
     st.sidebar.markdown("---")
 
     if st.sidebar.button("🏠 Dashboard", use_container_width=True):
         st.session_state.current_page = "Dashboard"
         st.rerun()
 
-    menu_opts = ["💬 Messages", "🚫 Blocklist", "⚙️ Settings"]
+    menu_opts = ["💬 Messages", "👥 Friends", "👤 Profile", "🚫 Blocklist", "⚙️ Settings"]
     if role == "admin":
         menu_opts.append("📊 Admin Panel")
 
@@ -319,16 +344,16 @@ else:
         with c1:
             st.markdown(f"""
             <div class="card-box">
-                <h3 style="color:#e5e7eb; margin:0;">{len(data['users'])}</h3>
-                <small style="color:#9ca3af;">Registered Users</small>
+                <h3 style="color:#e5e7eb; margin:0;">{len(user_info.get('friends', []))}</h3>
+                <small style="color:#9ca3af;">Your Friends</small>
             </div>
             """, unsafe_allow_html=True)
 
         with c2:
             st.markdown(f"""
             <div class="card-box">
-                <h3 style="color:#e5e7eb; margin:0;">{len(data['messages'])}</h3>
-                <small style="color:#9ca3af;">Total Transmissions</small>
+                <h3 style="color:#e5e7eb; margin:0;">{len(user_info.get('friend_requests', []))}</h3>
+                <small style="color:#9ca3af;">Pending Requests</small>
             </div>
             """, unsafe_allow_html=True)
 
@@ -337,7 +362,7 @@ else:
             st.markdown(f"""
             <div class="card-box">
                 <h3 style="color:#e5e7eb; margin:0;">{my_count}</h3>
-                <small style="color:#9ca3af;">Your Conversations</small>
+                <small style="color:#9ca3af;">Total Transmissions</small>
             </div>
             """, unsafe_allow_html=True)
 
@@ -346,31 +371,107 @@ else:
             st.session_state.current_page = "💬 Messages"
             st.rerun()
 
-    elif st.session_state.current_page == "💬 Messages":
-        other_users = [u for u in data["users"] if u != current_user]
+    elif st.session_state.current_page == "👥 Friends":
+        st.markdown("### 👥 Friend Management")
+        t_search, t_requests = st.tabs(["🔍 Search & Add", "📩 Pending Requests"])
 
-        if not other_users:
-            st.info("No other registered accounts available.")
+        with t_search:
+            s_query = st.text_input("Search user by Username or ID (e.g. #A123)", key="s_query_key")
+            if st.button("SEARCH USER", use_container_width=True):
+                found = False
+                for uname, udata in data["users"].items():
+                    if uname != current_user and (s_query.strip().lower() == uname.lower() or s_query.strip().upper() == udata.get("user_id")):
+                        found = True
+                        st.markdown(f"**Found:** `{uname}` ({udata.get('user_id')})")
+                        if uname in user_info.get("friends", []):
+                            st.info("Already in your friends list.")
+                        elif current_user in udata.get("friend_requests", []):
+                            st.info("Friend request already sent.")
+                        else:
+                            if st.button(f"➕ Send Request to {uname}", key=f"req_{uname}"):
+                                udata.setdefault("friend_requests", []).append(current_user)
+                                save_data(data)
+                                log_audit("FRIEND_REQUEST_SENT", f"'{current_user}' sent request to '{uname}'.")
+                                st.success(f"Friend request sent to {uname}!")
+                                st.rerun()
+                if not found and s_query:
+                    st.warning("No user found with that Username or ID.")
+
+        with t_requests:
+            requests = user_info.get("friend_requests", [])
+            if not requests:
+                st.info("No pending friend requests.")
+            else:
+                for req_user in requests:
+                    col_r1, col_r2, col_r3 = st.columns([3, 1, 1])
+                    with col_r1:
+                        st.markdown(f"**{req_user}** ({data['users'][req_user].get('user_id')})")
+                    with col_r2:
+                        if st.button("ACCEPT ✅", key=f"acc_{req_user}"):
+                            user_info.setdefault("friends", []).append(req_user)
+                            data["users"][req_user].setdefault("friends", []).append(current_user)
+                            user_info["friend_requests"].remove(req_user)
+                            save_data(data)
+                            log_audit("FRIEND_ACCEPT", f"'{current_user}' accepted '{req_user}'.")
+                            st.success(f"Accepted {req_user}!")
+                            st.rerun()
+                    with col_r3:
+                        if st.button("DECLINE ❌", key=f"dec_{req_user}"):
+                            user_info["friend_requests"].remove(req_user)
+                            save_data(data)
+                            st.rerun()
+
+    elif st.session_state.current_page == "👤 Profile":
+        st.markdown("### 👤 User Profile")
+        col_p1, col_p2 = st.columns([1, 2])
+        
+        with col_p1:
+            if avatar_b64:
+                st.markdown(f'<img src="data:image/png;base64,{avatar_b64}" style="width:150px; height:150px; border-radius:50%; object-fit:cover; border:3px solid #374151;"><br><br>', unsafe_allow_html=True)
+            else:
+                st.info("No profile picture uploaded.")
+
+            up_avatar = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"])
+            if up_avatar:
+                img_bytes = up_avatar.read()
+                b64_img = base64.b64encode(img_bytes).decode('utf-8')
+                user_info["avatar"] = b64_img
+                save_data(data)
+                st.success("Avatar updated!")
+                st.rerun()
+
+        with col_p2:
+            st.markdown(f"**Username:** `{current_user}`")
+            st.markdown(f"**User ID:** `{user_id}`")
+            st.markdown(f"**Role:** `{role.upper()}`")
+            st.markdown(f"**Total Friends:** `{len(user_info.get('friends', []))}`")
+
+    elif st.session_state.current_page == "💬 Messages":
+        my_friends = user_info.get("friends", [])
+
+        if not my_friends:
+            st.info("You have no added friends yet. Go to '👥 Friends' page to search and add friends!")
         else:
             col_contacts, col_chat = st.columns([1, 2.2])
 
             with col_contacts:
-                st.markdown("##### Users")
-                for u in other_users:
-                    is_sel = (st.session_state.selected_chat == u)
-                    btn_txt = f"🟢 {u}" if is_sel else f"👤 {u}"
-                    if st.button(btn_txt, key=f"user_sel_{u}", use_container_width=True):
-                        st.session_state.selected_chat = u
+                st.markdown("##### Friends")
+                for f_name in my_friends:
+                    is_sel = (st.session_state.selected_chat == f_name)
+                    btn_txt = f"🟢 {f_name}" if is_sel else f"👤 {f_name}"
+                    if st.button(btn_txt, key=f"user_sel_{f_name}", use_container_width=True):
+                        st.session_state.selected_chat = f_name
                         st.rerun()
 
             with col_chat:
                 target_chat = st.session_state.selected_chat
-                if not target_chat:
-                    st.info("Select a user from the left panel to display chat history.")
+                if not target_chat or target_chat not in my_friends:
+                    st.info("Select a friend from the left panel to display chat history.")
                 else:
+                    target_id = data["users"][target_chat].get("user_id", "")
                     st.markdown(f"""
                     <div class="chat-header-bar">
-                        <strong>Chatting with: {target_chat}</strong>
+                        <strong>Chatting with: {target_chat} <small>({target_id})</small></strong>
                         <small style="float:right; color:#9ca3af;">AES Encrypted</small>
                     </div>
                     """, unsafe_allow_html=True)
@@ -445,7 +546,6 @@ else:
                                 if not is_mine and m.get("burn"):
                                     msgs_to_burn.append(m)
 
-                            # علامة نهاية الرسائل + سكريبت إجبار المتصفح على الانتقال إليها أسفل الكادر
                             st.markdown('<div id="end-of-chat"></div>', unsafe_allow_html=True)
                             components.html("""
                             <script>
@@ -559,7 +659,7 @@ else:
     elif st.session_state.current_page == "📊 Admin Panel":
         st.markdown("### 📊 Admin Panel")
         st.markdown("##### User Registry")
-        st.table([{"User": u, "Role": info.get("role"), "Blocked": len(info.get("blocked", []))} for u, info in data["users"].items()])
+        st.table([{"User": u, "ID": info.get("user_id"), "Role": info.get("role"), "Friends": len(info.get("friends", []))} for u, info in data["users"].items()])
         
         st.markdown("##### System Audit Logs")
         if os.path.exists(LOG_FILE):
