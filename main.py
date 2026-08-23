@@ -7,8 +7,14 @@ import string
 from datetime import datetime
 from cryptography.fernet import Fernet
 
-from st_autorun import st_autorun
-st_autorun(interval=3000, key="auto_refresh_chat")
+import time
+
+if "last_rerun" not in st.session_state:
+    st.session_state.last_rerun = time.time()
+
+if time.time() - st.session_state.last_rerun > 3:
+    st.session_state.last_rerun = time.time()
+    st.rerun()
 
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
