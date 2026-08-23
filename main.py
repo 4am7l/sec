@@ -8,8 +8,8 @@ from datetime import datetime
 from cryptography.fernet import Fernet
 
 from st_autorun import st_autorun
-
 st_autorun(interval=3000, key="auto_refresh_chat")
+
 
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data.json")
 KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
