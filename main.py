@@ -112,7 +112,6 @@ def get_avatar_html(avatar_b64, size=45, status_icon="🟢"):
 
 def navigate_to(page_name, target_user=None):
     st.session_state.current_page = page_name
-    st.session_state.nav_sel = page_name
     if target_user:
         st.session_state.selected_chat = target_user
 
@@ -126,13 +125,12 @@ st.markdown("""
         font-family: 'Plus Jakarta Sans', sans-serif;
     }
 
-    /* Ultra Modern Glassmorphism Background */
     .stApp {
         background: radial-gradient(circle at 15% 15%, #1e1b4b 0%, #0b0f19 50%, #030712 100%);
         color: #f1f5f9;
     }
 
-    /* Cyber Sidebar */
+    /* Cyber Sidebar Container */
     section[data-testid="stSidebar"] {
         background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(16px) !important;
@@ -140,14 +138,44 @@ st.markdown("""
         border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
     }
 
-    /* Glow Input Elements */
+    /* Custom Navigation Buttons (Cards Style) */
+    div[data-testid="stSidebar"] .stButton > button {
+        background: rgba(30, 41, 59, 0.4) !important;
+        color: #94a3b8 !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 12px !important;
+        padding: 10px 14px !important;
+        text-align: left !important;
+        font-size: 0.95em !important;
+        font-weight: 600 !important;
+        justify-content: flex-start !important;
+        display: flex !important;
+        gap: 10px !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: none !important;
+    }
+
+    div[data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(99, 102, 241, 0.15) !important;
+        color: #f1f5f9 !important;
+        border-color: rgba(129, 140, 248, 0.3) !important;
+        transform: translateX(4px) !important;
+    }
+
+    /* Active Nav Item Styling */
+    .nav-active-btn button {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4) !important;
+    }
+
     .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
         background: rgba(30, 41, 59, 0.6) !important;
         color: #f8fafc !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
         border-radius: 12px !important;
         backdrop-filter: blur(8px) !important;
-        transition: all 0.3s ease !important;
     }
 
     .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
@@ -155,27 +183,6 @@ st.markdown("""
         box-shadow: 0 0 15px rgba(129, 140, 248, 0.35) !important;
     }
 
-    /* Gradient Glowing Buttons */
-    .stButton>button, .stDownloadButton>button {
-        background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(168,85,247,0.2) 100%) !important;
-        color: #f8fafc !important;
-        border: 1px solid rgba(129, 140, 248, 0.3) !important;
-        border-radius: 12px !important;
-        font-weight: 600 !important;
-        backdrop-filter: blur(10px) !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
-    }
-
-    .stButton>button:hover, .stDownloadButton>button:hover {
-        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%) !important;
-        border-color: #c084fc !important;
-        color: #ffffff !important;
-        transform: translateY(-2px) scale(1.01) !important;
-        box-shadow: 0 8px 25px rgba(168, 85, 247, 0.4) !important;
-    }
-
-    /* Glassmorphism Cards */
     .card-box {
         background: rgba(17, 24, 39, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -210,7 +217,6 @@ st.markdown("""
         box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
     }
 
-    /* Modern Glass Header */
     .chat-header-bar {
         background: rgba(17, 24, 39, 0.7);
         padding: 16px 24px;
@@ -224,7 +230,6 @@ st.markdown("""
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
     }
 
-    /* Chat Messages Layout */
     .chat-message-container {
         display: flex;
         flex-direction: column;
@@ -356,7 +361,6 @@ if not st.session_state.current_user:
                 if user and user["password"] == hash_data(p_in):
                     st.session_state.current_user = u_in
                     st.session_state.current_page = "🏠 Dashboard"
-                    st.session_state.nav_sel = "🏠 Dashboard"
                     log_audit("LOGIN_SUCCESS", f"User '{u_in}' logged in.")
                     st.success(f"Welcome back, {u_in}!")
                     st.rerun()
@@ -451,25 +455,36 @@ else:
     
     st.sidebar.markdown("<small style='color:#94a3b8;'>Your Permanent ID:</small>", unsafe_allow_html=True)
     st.sidebar.code(user_id, language=None)
-    st.sidebar.markdown("---")
+    st.sidebar.markdown("<hr style='border:0.5px solid rgba(255,255,255,0.08); margin: 15px 0;'>", unsafe_allow_html=True)
 
-    menu_opts = ["🏠 Dashboard", "💬 Messages", "👥 Friends", "👤 Profile", "🚫 Blocklist", "⚙️ Settings"]
+    st.sidebar.markdown("<p style='color:#60a5fa; font-size:0.75em; font-weight:bold; letter-spacing:1px; margin-bottom:10px;'>NAVIGATION MENU</p>", unsafe_allow_html=True)
+    
+    nav_items = [
+        ("🏠 Dashboard", "🏠 Dashboard"),
+        ("💬 Messages", "💬 Messages"),
+        ("👥 Friends", "👥 Friends"),
+        ("👤 Profile", "👤 Profile"),
+        ("🚫 Blocklist", "🚫 Blocklist"),
+        ("⚙️ Settings", "⚙️ Settings")
+    ]
     if role == "admin":
-        menu_opts.append("📊 Admin Panel")
+        nav_items.append(("📊 Admin Panel", "📊 Admin Panel"))
 
-    if "nav_sel" not in st.session_state:
-        st.session_state.nav_sel = st.session_state.current_page
+    for label, page_key in nav_items:
+        is_active = (st.session_state.current_page == page_key)
+        container_class = "nav-active-btn" if is_active else ""
+        
+        st.sidebar.markdown(f'<div class="{container_class}">', unsafe_allow_html=True)
+        if st.sidebar.button(label, key=f"nav_btn_{page_key}", use_container_width=True):
+            st.session_state.current_page = page_key
+            st.rerun()
+        st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
-    def on_nav_change():
-        st.session_state.current_page = st.session_state.nav_sel
-
-    st.sidebar.radio("NAVIGATION", menu_opts, key="nav_sel", on_change=on_nav_change)
-
-    st.sidebar.markdown("---")
+    st.sidebar.markdown("<hr style='border:0.5px solid rgba(255,255,255,0.08); margin: 15px 0;'>", unsafe_allow_html=True)
+    
     if st.sidebar.button("🚪 Logout", use_container_width=True):
         st.session_state.current_user = None
         st.session_state.current_page = "🏠 Dashboard"
-        st.session_state.nav_sel = "🏠 Dashboard"
         st.rerun()
 
     if st.session_state.current_page == "🏠 Dashboard":
