@@ -103,6 +103,12 @@ def get_avatar_html(avatar_b64, size=45):
     else:
         return f'<div style="width:{size}px; height:{size}px; border-radius:50%; background-color:#282c37; color:#d1d5db; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #374151; vertical-align:middle;">👤</div>'
 
+def navigate_to(page_name, target_user=None):
+    st.session_state.current_page = page_name
+    st.session_state.nav_sel = page_name
+    if target_user:
+        st.session_state.selected_chat = target_user
+
 st.set_page_config(page_title="Secure Chat App", page_icon="🔒", layout="wide")
 
 st.markdown("""
@@ -223,7 +229,7 @@ if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
 if "current_page" not in st.session_state:
-    st.session_state.current_page = "Dashboard"
+    st.session_state.current_page = "🏠 Dashboard"
 
 if "selected_chat" not in st.session_state:
     st.session_state.selected_chat = None
@@ -247,7 +253,8 @@ if not st.session_state.current_user:
                 user = data["users"].get(u_in)
                 if user and user["password"] == hash_data(p_in):
                     st.session_state.current_user = u_in
-                    st.session_state.current_page = "Dashboard"
+                    st.session_state.current_page = "🏠 Dashboard"
+                    st.session_state.nav_sel = "🏠 Dashboard"
                     log_audit("LOGIN_SUCCESS", f"User '{u_in}' logged in.")
                     st.success(f"Welcome back, {u_in}!")
                     st.rerun()
@@ -392,10 +399,7 @@ else:
             """, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("💬 Open Messages", use_container_width=True):
-            st.session_state.current_page = "💬 Messages"
-            st.session_state.nav_sel = "💬 Messages"
-            st.rerun()
+        st.button("💬 Open Messages", use_container_width=True, on_click=navigate_to, args=("💬 Messages",))
 
     elif st.session_state.current_page == "👥 Friends":
         st.markdown("### 👥 Friend Management")
@@ -474,11 +478,7 @@ else:
                     c_act1, c_act2, c_act3, c_act4 = st.columns([1, 1.2, 1, 1])
                     
                     with c_act1:
-                        if st.button(f"💬 Chat", key=f"chat_btn_{f_item}", use_container_width=True):
-                            st.session_state.selected_chat = f_item
-                            st.session_state.current_page = "💬 Messages"
-                            st.session_state.nav_sel = "💬 Messages"
-                            st.rerun()
+                        st.button(f"💬 Chat", key=f"chat_btn_{f_item}", use_container_width=True, on_click=navigate_to, args=("💬 Messages", f_item))
 
                     with c_act2:
                         with st.popover("✏️ Nickname", use_container_width=True):
