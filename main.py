@@ -4,6 +4,7 @@ import os
 import hashlib
 import secrets
 import string
+import base64
 from datetime import datetime
 from cryptography.fernet import Fernet
 
@@ -109,7 +110,7 @@ st.markdown("""
     }
 
     /* Buttons Styling */
-    .stButton>button {
+    .stButton>button, .stDownloadButton>button {
         background-color: #1f232c !important;
         color: #e5e7eb !important;
         border: 1px solid #374151 !important;
@@ -118,7 +119,7 @@ st.markdown("""
         transition: all 0.2s ease !important;
     }
 
-    .stButton>button:hover {
+    .stButton>button:hover, .stDownloadButton>button:hover {
         background-color: #374151 !important;
         border-color: #4b5563 !important;
         color: #ffffff !important;
@@ -139,7 +140,7 @@ st.markdown("""
         padding: 10px 14px;
         border-radius: 12px 12px 2px 12px;
         margin: 6px 0;
-        max-width: 70%;
+        max-width: 75%;
         float: right;
         clear: both;
         border: 1px solid #374151;
@@ -152,7 +153,7 @@ st.markdown("""
         padding: 10px 14px;
         border-radius: 12px 12px 12px 2px;
         margin: 6px 0;
-        max-width: 70%;
+        max-width: 75%;
         float: left;
         clear: both;
         border: 1px solid #282c37;
@@ -373,39 +374,69 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # تحديث تلقائي خفيف وسلس لمنطقة المحادثة فقط دون إعادة تحميل باقي الصفحة
+                    # تحديد حاوية شات ثابتة الارتفاع مع سكرول تلقائي نحو الأسفل
+                    chat_container = st.container(height=420)
+
                     @st.fragment(run_every="2s")
                     def render_live_chat():
                         live_data = load_data()
                         msgs_to_burn = []
-                        for m in live_data["messages"]:
-                            f_user, t_user = m.get("from"), m.get("to")
-                            if (f_user == current_user and t_user == target_chat) or (f_user == target_chat and t_user == current_user):
-                                try:
-                                    dec_text = cipher.decrypt(m['content'].encode()).decode()
-                                except Exception:
-                                    dec_text = "[Decryption Error]"
+                        
+                        with chat_container:
+                            for m in live_data["messages"]:
+                                f_user, t_user = m.get("from"), m.get("to")
+                                if (f_user == current_user and t_user == target_chat) or (f_user == target_chat and t_user == current_user):
+                                    try:
+                                        dec_raw = cipher.decrypt(m['content'].encode()).decode()
+                                        txt_display = dec_raw
+                                        file_bytes, file_name, file_mime = None, None, None
 
-                                burn_str = " 🔥" if m.get("burn") else ""
-                                time_str = m['time'].split(" ")[1][:5]
+                                        if "[FILE:" in dec_raw:
+                                            parts = dec_raw.split("[FILE:")
+                                            txt_display = parts[0].strip()
+                                            meta_and_b64 = parts[1]
+                                            meta_str = meta_and_b64.split("]")[0]
+                                            b64_str = meta_and_b64.split("]")[1]
+                                            
+                                            file_name, file_mime = meta_str.split(":", 1)
+                                            file_bytes = base64.b64decode(b64_str)
 
-                                if f_user == current_user:
+                                    except Exception:
+                                        txt_display = "[Decryption Error]"
+                                        file_bytes = None
+
+                                    burn_str = " 🔥" if m.get("burn") else ""
+                                    time_str = m['time'].split(" ")[1][:5]
+                                    is_mine = (f_user == current_user)
+
+                                    bubble_class = "bubble-sent" if is_mine else "bubble-received"
+                                    
                                     st.markdown(f"""
-                                    <div class="bubble-sent">
-                                        {dec_text}{burn_str}
+                                    <div class="{bubble_class}">
+                                        {txt_display}{burn_str if txt_display else ''}
                                         <span class="bubble-time">{time_str}</span>
                                     </div>
                                     """, unsafe_allow_html=True)
-                                else:
-                                    st.markdown(f"""
-                                    <div class="bubble-received">
-                                        {dec_text}{burn_str}
-                                        <span class="bubble-time">{time_str}</span>
-                                    </div>
-                                    """, unsafe_allow_html=True)
 
-                                    if m.get("burn"):
+                                    if file_bytes:
+                                        st.download_button(
+                                            label=f"📎 Download {file_name}",
+                                            data=file_bytes,
+                                            file_name=file_name,
+                                            mime=file_mime,
+                                            key=f"dl_{m['time']}_{f_user}"
+                                        )
+
+                                    if not is_mine and m.get("burn"):
                                         msgs_to_burn.append(m)
+
+                            # كود سكريبت تلقائي يحرّك الشات لأسفل الرسائل عند الوصول
+                            st.markdown("""
+                            <script>
+                                var chatBox = window.parent.document.querySelector('div[data-testid="stVerticalBlockBorderWrapper"]');
+                                if (chatBox) { chatBox.scrollTop = chatBox.scrollHeight; }
+                            </script>
+                            """, unsafe_allow_html=True)
 
                         if msgs_to_burn:
                             for bm in msgs_to_burn:
@@ -418,9 +449,10 @@ else:
                     st.markdown("<div style='clear:both;'></div><br>", unsafe_allow_html=True)
 
                     with st.form(key="send_form", clear_on_submit=True):
-                        c_input, c_chk, c_btn = st.columns([3, 1, 1])
-                        with c_input:
-                            in_msg = st.text_input("Type a message...", key="in_msg_key", label_visibility="collapsed")
+                        in_msg = st.text_input("Type a message...", key="in_msg_key", label_visibility="collapsed")
+                        up_file = st.file_uploader("Attach File (Img, PDF, TXT)", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
+                        
+                        c_chk, c_btn = st.columns([1, 1])
                         with c_chk:
                             chk_burn = st.checkbox("Self-destruct")
                         with c_btn:
@@ -431,10 +463,18 @@ else:
                             recipient_blocked = fresh_data["users"][target_chat].get("blocked", [])
                             if current_user in recipient_blocked:
                                 st.error("User has blocked you.")
-                            elif not in_msg.strip():
-                                st.warning("Cannot send an empty message.")
+                            elif not in_msg.strip() and not up_file:
+                                st.warning("Cannot send an empty message or empty file.")
                             else:
-                                enc_content = cipher.encrypt(in_msg.encode()).decode()
+                                final_payload = in_msg.strip()
+                                
+                                if up_file:
+                                    f_bytes = up_file.read()
+                                    b64_data = base64.b64encode(f_bytes).decode('utf-8')
+                                    file_meta = f"[FILE:{up_file.name}:{up_file.type}]{b64_data}"
+                                    final_payload = f"{final_payload}\n{file_meta}" if final_payload else file_meta
+
+                                enc_content = cipher.encrypt(final_payload.encode()).decode()
                                 fresh_data["messages"].append({
                                     "from": current_user,
                                     "to": target_chat,
@@ -443,7 +483,7 @@ else:
                                     "burn": chk_burn
                                 })
                                 save_data(fresh_data)
-                                log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}'.")
+                                log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}' (with attachment).")
                                 st.rerun()
 
     elif st.session_state.current_page == "🚫 Blocklist":
