@@ -183,6 +183,12 @@ st.markdown("""
         border-radius: 4px;
         margin-top: 10px;
     }
+
+    /* كادر شات مع نزول تلقائي نحو الأسفل */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        display: flex;
+        flex-direction: column-reverse;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -374,48 +380,9 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    with st.form(key="send_form", clear_on_submit=True):
-                        in_msg = st.text_input("Type a message...", key="in_msg_key", label_visibility="collapsed")
-                        up_file = st.file_uploader("Attach File (Img, PDF, TXT)", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
-                        
-                        c_chk, c_btn = st.columns([1, 1])
-                        with c_chk:
-                            chk_burn = st.checkbox("Self-destruct")
-                        with c_btn:
-                            btn_sub = st.form_submit_button("SEND 🚀", use_container_width=True)
-
-                        if btn_sub:
-                            fresh_data = load_data()
-                            recipient_blocked = fresh_data["users"][target_chat].get("blocked", [])
-                            if current_user in recipient_blocked:
-                                st.error("User has blocked you.")
-                            elif not in_msg.strip() and not up_file:
-                                st.warning("Cannot send an empty message or empty file.")
-                            else:
-                                final_payload = in_msg.strip()
-                                
-                                if up_file:
-                                    f_bytes = up_file.read()
-                                    b64_data = base64.b64encode(f_bytes).decode('utf-8')
-                                    file_meta = f"[FILE:{up_file.name}:{up_file.type}]{b64_data}"
-                                    final_payload = f"{final_payload}\n{file_meta}" if final_payload else file_meta
-
-                                enc_content = cipher.encrypt(final_payload.encode()).decode()
-                                fresh_data["messages"].append({
-                                    "from": current_user,
-                                    "to": target_chat,
-                                    "content": enc_content,
-                                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                    "burn": chk_burn
-                                })
-                                save_data(fresh_data)
-                                log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}' (with attachment).")
-                                st.rerun()
-
-                    st.markdown("---")
-
                     chat_container = st.container(height=400)
 
+                    # عرض الرسائل بالترتيب الطبيعي (من الأقدم للأحدث في الأسفل)
                     @st.fragment(run_every="2s")
                     def render_live_chat():
                         live_data = load_data()
@@ -428,7 +395,7 @@ else:
                         ]
                         
                         with chat_container:
-                            for m in reversed(filtered_msgs):
+                            for m in filtered_msgs:
                                 f_user, t_user = m.get("from"), m.get("to")
                                 try:
                                     dec_raw = cipher.decrypt(m['content'].encode()).decode()
@@ -491,6 +458,47 @@ else:
                             save_data(live_data)
 
                     render_live_chat()
+
+                    st.markdown("<div style='clear:both;'></div><br>", unsafe_allow_html=True)
+
+                    # نموذج الإرسال يبقى بالأسفل دائماً
+                    with st.form(key="send_form", clear_on_submit=True):
+                        in_msg = st.text_input("Type a message...", key="in_msg_key", label_visibility="collapsed")
+                        up_file = st.file_uploader("Attach File (Img, PDF, TXT)", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
+                        
+                        c_chk, c_btn = st.columns([1, 1])
+                        with c_chk:
+                            chk_burn = st.checkbox("Self-destruct")
+                        with c_btn:
+                            btn_sub = st.form_submit_button("SEND 🚀", use_container_width=True)
+
+                        if btn_sub:
+                            fresh_data = load_data()
+                            recipient_blocked = fresh_data["users"][target_chat].get("blocked", [])
+                            if current_user in recipient_blocked:
+                                st.error("User has blocked you.")
+                            elif not in_msg.strip() and not up_file:
+                                st.warning("Cannot send an empty message or empty file.")
+                            else:
+                                final_payload = in_msg.strip()
+                                
+                                if up_file:
+                                    f_bytes = up_file.read()
+                                    b64_data = base64.b64encode(f_bytes).decode('utf-8')
+                                    file_meta = f"[FILE:{up_file.name}:{up_file.type}]{b64_data}"
+                                    final_payload = f"{final_payload}\n{file_meta}" if final_payload else file_meta
+
+                                enc_content = cipher.encrypt(final_payload.encode()).decode()
+                                fresh_data["messages"].append({
+                                    "from": current_user,
+                                    "to": target_chat,
+                                    "content": enc_content,
+                                    "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "burn": chk_burn
+                                })
+                                save_data(fresh_data)
+                                log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}' (with attachment).")
+                                st.rerun()
 
     elif st.session_state.current_page == "🚫 Blocklist":
         st.markdown("### 🚫 Blocklist Management")
