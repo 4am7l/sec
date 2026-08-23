@@ -103,14 +103,14 @@ def is_strong_password(password):
 
 def get_avatar_html(avatar_b64, size=45, status_icon="🟢"):
     if avatar_b64:
-        img_html = f'<img src="data:image/png;base64,{avatar_b64}" style="width:{size}px; height:{size}px; border-radius:50%; object-fit:cover; border:2px solid #3b82f6;">'
+        img_html = f'<img src="data:image/png;base64,{avatar_b64}" style="width:{size}px; height:{size}px; border-radius:50%; object-fit:cover; border:2px solid #6366f1; box-shadow:0 0 10px rgba(99,102,241,0.5);">'
     else:
-        img_html = f'<div style="width:{size}px; height:{size}px; border-radius:50%; background:linear-gradient(135deg, #1e293b, #0f172a); color:#f8fafc; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #3b82f6; font-size:{int(size/2.2)}px;">👤</div>'
+        img_html = f'<div style="width:{size}px; height:{size}px; border-radius:50%; background:linear-gradient(135deg, #4f46e5, #0f172a); color:#f8fafc; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #6366f1; font-size:{int(size/2.2)}px; box-shadow:0 0 10px rgba(99,102,241,0.5);">👤</div>'
     
     return f'''
     <div style="position:relative; display:inline-block; vertical-align:middle;">
         {img_html}
-        <span style="position:absolute; bottom:0; right:0; font-size:{int(size/3.5)}px; background:#0f172a; border-radius:50%; padding:1px;">{status_icon.split()[0]}</span>
+        <span style="position:absolute; bottom:0; right:0; font-size:{int(size/3.5)}px; background:#0b0f19; border-radius:50%; padding:2px; box-shadow:0 0 5px rgba(0,0,0,0.8);">{status_icon.split()[0]}</span>
     </div>
     '''
 
@@ -120,69 +120,120 @@ def navigate_to(page_name, target_user=None):
     if target_user:
         st.session_state.selected_chat = target_user
 
-st.set_page_config(page_title="Ultra Secure Chat v2.0", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Ultra Secure Cyber Chat", page_icon="⚡", layout="wide")
 
 st.markdown("""
 <style>
-    /* Dark Slate & Cyberpunk Minimalist Theme */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    /* Ultra Modern Glassmorphism Background */
     .stApp {
-        background-color: #0b0f19;
-        color: #e2e8f0;
+        background: radial-gradient(circle at 15% 15%, #1e1b4b 0%, #0b0f19 50%, #030712 100%);
+        color: #f1f5f9;
     }
-    
+
+    /* Cyber Sidebar */
     section[data-testid="stSidebar"] {
-        background-color: #111827 !important;
-        border-right: 1px solid #1e293b !important;
+        background: rgba(15, 23, 42, 0.75) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
     }
 
-    /* Input & Interactive Elements */
+    /* Glow Input Elements */
     .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
-        background-color: #1e293b !important;
+        background: rgba(30, 41, 59, 0.6) !important;
         color: #f8fafc !important;
-        border: 1px solid #334155 !important;
-        border-radius: 8px !important;
-    }
-    
-    .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
-        border-color: #3b82f6 !important;
-        box-shadow: 0 0 8px rgba(59, 130, 246, 0.3) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 12px !important;
+        backdrop-filter: blur(8px) !important;
+        transition: all 0.3s ease !important;
     }
 
-    /* Buttons */
+    .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
+        border-color: #818cf8 !important;
+        box-shadow: 0 0 15px rgba(129, 140, 248, 0.35) !important;
+    }
+
+    /* Gradient Glowing Buttons */
     .stButton>button, .stDownloadButton>button {
-        background: linear-gradient(135deg, #1e293b, #0f172a) !important;
-        color: #f1f5f9 !important;
-        border: 1px solid #334155 !important;
-        border-radius: 8px !important;
+        background: linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(168,85,247,0.2) 100%) !important;
+        color: #f8fafc !important;
+        border: 1px solid rgba(129, 140, 248, 0.3) !important;
+        border-radius: 12px !important;
         font-weight: 600 !important;
-        transition: all 0.25s ease !important;
+        backdrop-filter: blur(10px) !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
     }
 
     .stButton>button:hover, .stDownloadButton>button:hover {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
-        border-color: #60a5fa !important;
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%) !important;
+        border-color: #c084fc !important;
         color: #ffffff !important;
-        transform: translateY(-1px);
+        transform: translateY(-2px) scale(1.01) !important;
+        box-shadow: 0 8px 25px rgba(168, 85, 247, 0.4) !important;
     }
 
-    /* Chat Styling */
-    .chat-header-bar {
-        background: linear-gradient(90deg, #111827, #1e293b);
-        padding: 14px 20px;
-        border-radius: 12px;
-        border: 1px solid #1e293b;
-        margin-bottom: 15px;
+    /* Glassmorphism Cards */
+    .card-box {
+        background: rgba(17, 24, 39, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 22px;
+        text-align: center;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+
+    .card-box:hover {
+        transform: translateY(-4px);
+        border-color: rgba(129, 140, 248, 0.4);
+    }
+
+    .user-card {
+        background: rgba(17, 24, 39, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
     }
 
+    .user-card:hover {
+        border-color: rgba(99, 102, 241, 0.5);
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+    }
+
+    /* Modern Glass Header */
+    .chat-header-bar {
+        background: rgba(17, 24, 39, 0.7);
+        padding: 16px 24px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        backdrop-filter: blur(16px);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    /* Chat Messages Layout */
     .chat-message-container {
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        padding: 10px;
+        gap: 14px;
+        padding: 12px;
     }
 
     .message-row {
@@ -200,102 +251,79 @@ st.markdown("""
     }
 
     .message-bubble {
-        padding: 12px 16px;
-        max-width: 72%;
+        padding: 14px 18px;
+        max-width: 70%;
         word-wrap: break-word;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(8px);
         position: relative;
     }
 
     .message-bubble.sent {
-        background: linear-gradient(135deg, #1d4ed8, #1e40af);
-        color: #f8fafc;
-        border-radius: 16px 16px 2px 16px;
-        border: 1px solid #3b82f6;
+        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+        color: #ffffff;
+        border-radius: 20px 20px 4px 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     .message-bubble.received {
-        background: #1e293b;
-        color: #e2e8f0;
-        border-radius: 16px 16px 16px 2px;
-        border: 1px solid #334155;
+        background: rgba(30, 41, 59, 0.8);
+        color: #f1f5f9;
+        border-radius: 20px 20px 20px 4px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .reply-quote {
         background: rgba(0, 0, 0, 0.25);
-        border-left: 3px solid #60a5fa;
-        padding: 4px 8px;
-        border-radius: 4px;
+        border-left: 3px solid #c084fc;
+        padding: 6px 10px;
+        border-radius: 6px;
         font-size: 0.82em;
-        margin-bottom: 6px;
-        color: #cbd5e1;
+        margin-bottom: 8px;
+        color: #e9d5ff;
     }
 
     .message-time {
-        font-size: 0.7em;
-        color: #94a3b8;
+        font-size: 0.68em;
+        color: rgba(255, 255, 255, 0.6);
         display: block;
         text-align: right;
-        margin-top: 5px;
+        margin-top: 6px;
     }
 
     .reactions-bar {
         display: flex;
-        gap: 4px;
-        margin-top: 6px;
+        gap: 6px;
+        margin-top: 8px;
     }
 
     .reaction-badge {
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 2px 6px;
-        font-size: 0.75em;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        padding: 3px 8px;
+        font-size: 0.78em;
+        color: #f1f5f9;
     }
 
     .pinned-banner {
-        background: #1e1b4b;
-        border: 1px solid #4338ca;
-        padding: 8px 14px;
-        border-radius: 8px;
-        color: #c7d2fe;
-        font-size: 0.88em;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .user-card {
-        background: #111827;
-        border: 1px solid #1e293b;
-        border-radius: 10px;
-        padding: 12px 16px;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        transition: border-color 0.2s;
-    }
-
-    .user-card:hover {
-        border-color: #3b82f6;
-    }
-
-    .card-box {
-        background: #111827;
-        border: 1px solid #1e293b;
-        border-radius: 10px;
-        padding: 18px;
-        text-align: center;
+        background: linear-gradient(90deg, rgba(88, 28, 135, 0.5) 0%, rgba(30, 27, 75, 0.5) 100%);
+        border: 1px solid rgba(168, 85, 247, 0.4);
+        padding: 10px 18px;
+        border-radius: 12px;
+        color: #f3e8ff;
+        font-size: 0.9em;
+        margin-bottom: 14px;
+        backdrop-filter: blur(10px);
     }
 
     .recovery-info {
-        background: #0f172a;
-        border-left: 4px solid #3b82f6;
-        padding: 14px;
-        border-radius: 6px;
-        margin-top: 10px;
+        background: rgba(15, 23, 42, 0.8);
+        border-left: 4px solid #a855f7;
+        padding: 16px;
+        border-radius: 12px;
+        margin-top: 14px;
+        box-shadow: 0 4px 20px rgba(168, 85, 247, 0.15);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -315,8 +343,8 @@ if "reply_to_msg" not in st.session_state:
 data = load_data()
 
 if not st.session_state.current_user:
-    st.markdown("<h1 style='text-align: center; color: #60a5fa; margin-bottom: 10px; font-weight:800;'>⚡ ULTRA SECURE CHAT</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #94a3b8; margin-bottom: 35px;'>End-to-End Encrypted Private Communications Platform</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; background: linear-gradient(135deg, #a855f7, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size:2.8em; font-weight:800; margin-bottom: 5px;'>⚡ CYBER SECURE CHAT</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #94a3b8; font-size:1.05em; margin-bottom: 40px;'>Encrypted Private Communications Platform</p>", unsafe_allow_html=True)
     col_main = st.columns([1, 2, 1])[1]
     
     with col_main:
@@ -423,11 +451,11 @@ else:
     my_nicknames = user_info.get("nicknames", {})
 
     st.sidebar.markdown(f"""
-    <div style="text-align: center; padding: 10px 0;">
-        {get_avatar_html(avatar_b64, size=80, status_icon=status_icon)}
-        <h3 style="margin-top: 10px; margin-bottom: 2px; color:#f8fafc;">{current_user}</h3>
-        <p style="color: #94a3b8; font-size: 0.82em; margin-bottom: 4px;">"{status_text}"</p>
-        <span style="background:#1e293b; color:#60a5fa; padding:2px 8px; border-radius:12px; font-size:0.75em; font-weight:bold;">
+    <div style="text-align: center; padding: 12px 0;">
+        {get_avatar_html(avatar_b64, size=85, status_icon=status_icon)}
+        <h3 style="margin-top: 12px; margin-bottom: 2px; color:#f8fafc; font-weight:700;">{current_user}</h3>
+        <p style="color: #c084fc; font-size: 0.82em; margin-bottom: 6px;">"{status_text}"</p>
+        <span style="background:linear-gradient(135deg, #4f46e5, #9333ea); color:#ffffff; padding:3px 10px; border-radius:12px; font-size:0.75em; font-weight:bold; box-shadow:0 0 10px rgba(147, 51, 234, 0.4);">
             {role.upper()}
         </span>
     </div>
@@ -463,16 +491,16 @@ else:
         with c1:
             st.markdown(f"""
             <div class="card-box">
-                <h2 style="color:#60a5fa; margin:0;">{len(user_info.get('friends', []))}</h2>
-                <small style="color:#94a3b8;">Active Friends</small>
+                <h2 style="color:#c084fc; margin:0; font-size:2.2em; font-weight:800;">{len(user_info.get('friends', []))}</h2>
+                <small style="color:#94a3b8; font-size:0.9em;">Active Friends</small>
             </div>
             """, unsafe_allow_html=True)
 
         with c2:
             st.markdown(f"""
             <div class="card-box">
-                <h2 style="color:#f59e0b; margin:0;">{len(user_info.get('friend_requests', []))}</h2>
-                <small style="color:#94a3b8;">Pending Requests</small>
+                <h2 style="color:#f59e0b; margin:0; font-size:2.2em; font-weight:800;">{len(user_info.get('friend_requests', []))}</h2>
+                <small style="color:#94a3b8; font-size:0.9em;">Pending Requests</small>
             </div>
             """, unsafe_allow_html=True)
 
@@ -480,13 +508,13 @@ else:
             my_count = sum(1 for m in data['messages'] if m.get('to') == current_user or m.get('from') == current_user)
             st.markdown(f"""
             <div class="card-box">
-                <h2 style="color:#10b981; margin:0;">{my_count}</h2>
-                <small style="color:#94a3b8;">Encrypted Transmissions</small>
+                <h2 style="color:#34d399; margin:0; font-size:2.2em; font-weight:800;">{my_count}</h2>
+                <small style="color:#94a3b8; font-size:0.9em;">Encrypted Messages</small>
             </div>
             """, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.button("💬 Jump To Private Messages", use_container_width=True, on_click=navigate_to, args=("💬 Messages",))
+        st.button("💬 Open Chat Room", use_container_width=True, on_click=navigate_to, args=("💬 Messages",))
 
     elif st.session_state.current_page == "👥 Friends":
         st.markdown("### 👥 Friend Management")
@@ -515,12 +543,12 @@ else:
                         with col_card:
                             st.markdown(f"""
                             <div class="user-card">
-                                <div style="display:flex; align-items:center; gap:12px;">
-                                    {get_avatar_html(u_av, size=50, status_icon=u_st_icon)}
+                                <div style="display:flex; align-items:center; gap:14px;">
+                                    {get_avatar_html(u_av, size=52, status_icon=u_st_icon)}
                                     <div>
-                                        <strong style="font-size:1.1em; color:#f8fafc;">{uname}</strong>
-                                        <span style="color:#60a5fa; font-size:0.85em; margin-left:6px;">({u_id_val})</span>
-                                        <p style="color:#94a3b8; font-size:0.8em; margin:2px 0 0 0;">{u_bio}</p>
+                                        <strong style="font-size:1.15em; color:#f8fafc;">{uname}</strong>
+                                        <span style="color:#a855f7; font-size:0.88em; margin-left:6px;">({u_id_val})</span>
+                                        <p style="color:#94a3b8; font-size:0.82em; margin:2px 0 0 0;">{u_bio}</p>
                                     </div>
                                 </div>
                             </div>
@@ -561,12 +589,12 @@ else:
 
                     st.markdown(f"""
                     <div class="user-card">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            {get_avatar_html(f_av, size=45, status_icon=f_st_icon)}
+                        <div style="display:flex; align-items:center; gap:14px;">
+                            {get_avatar_html(f_av, size=48, status_icon=f_st_icon)}
                             <div>
-                                <strong style="font-size:1.05em; color:#f8fafc;">{label_str}</strong>
-                                <span style="color:#94a3b8; font-size:0.8em; margin-left:6px;">({f_id})</span>
-                                <small style="display:block; color:#60a5fa; font-size:0.75em;">{f_st_txt}</small>
+                                <strong style="font-size:1.1em; color:#f8fafc;">{label_str}</strong>
+                                <span style="color:#94a3b8; font-size:0.82em; margin-left:6px;">({f_id})</span>
+                                <small style="display:block; color:#c084fc; font-size:0.78em;">{f_st_txt}</small>
                             </div>
                         </div>
                     </div>
@@ -611,7 +639,7 @@ else:
                             log_audit("USER_BLOCKED", f"'{current_user}' blocked '{f_item}'.")
                             st.rerun()
 
-                    st.markdown("<hr style='border:0.5px solid #1e293b; margin: 10px 0;'>", unsafe_allow_html=True)
+                    st.markdown("<hr style='border:0.5px solid rgba(255,255,255,0.08); margin: 12px 0;'>", unsafe_allow_html=True)
 
         with t_requests:
             fresh_user_info = data["users"].get(current_user, {})
@@ -628,11 +656,11 @@ else:
                     with col_r1:
                         st.markdown(f"""
                         <div class="user-card">
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                {get_avatar_html(req_av, size=40)}
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                {get_avatar_html(req_av, size=42)}
                                 <div>
                                     <strong style="color:#f8fafc;">{req_user}</strong>
-                                    <span style="color:#94a3b8; font-size:0.8em;">({req_id})</span>
+                                    <span style="color:#94a3b8; font-size:0.82em;">({req_id})</span>
                                 </div>
                             </div>
                         </div>
@@ -662,10 +690,10 @@ else:
         
         with col_p1:
             st.markdown("##### Profile Avatar")
-            st.markdown(get_avatar_html(avatar_b64, size=130, status_icon=status_icon), unsafe_allow_html=True)
+            st.markdown(get_avatar_html(avatar_b64, size=135, status_icon=status_icon), unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
 
-            up_avatar = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"])
+            up_avatar = st.file_uploader("Upload Circular Avatar", type=["png", "jpg", "jpeg"])
             if up_avatar:
                 img_bytes = up_avatar.read()
                 b64_img = base64.b64encode(img_bytes).decode('utf-8')
@@ -697,7 +725,7 @@ else:
             col_contacts, col_chat = st.columns([1, 2.5])
 
             with col_contacts:
-                st.markdown("##### 💬 Chats")
+                st.markdown("##### 💬 Friends List")
                 for f_name in my_friends:
                     f_udata = data["users"].get(f_name, {})
                     f_avatar = f_udata.get("avatar", "")
@@ -725,24 +753,22 @@ else:
                     target_st_txt = target_udata.get("status_text", "Available")
                     target_disp = my_nicknames.get(target_chat, target_chat)
                     
-                    # Header
                     st.markdown(f"""
                     <div class="chat-header-bar">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            {get_avatar_html(target_av, size=42, status_icon=target_st_icon)}
+                        <div style="display: flex; align-items: center; gap: 14px;">
+                            {get_avatar_html(target_av, size=46, status_icon=target_st_icon)}
                             <div>
-                                <strong style="font-size: 1.15em; color:#f8fafc;">{target_disp}</strong>
-                                <span style="color: #60a5fa; font-size: 0.85em; margin-left: 6px;">({target_chat} {target_id})</span>
-                                <small style="display:block; color:#94a3b8; font-size: 0.78em;">{target_st_txt}</small>
+                                <strong style="font-size: 1.2em; color:#f8fafc;">{target_disp}</strong>
+                                <span style="color: #c084fc; font-size: 0.88em; margin-left: 6px;">({target_chat} {target_id})</span>
+                                <small style="display:block; color:#94a3b8; font-size: 0.8em;">{target_st_txt}</small>
                             </div>
                         </div>
-                        <span style="background-color: #064e3b; color: #34d399; padding: 4px 10px; border-radius: 12px; font-size: 0.75em; font-weight: bold;">
+                        <span style="background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; padding: 5px 12px; border-radius: 12px; font-size: 0.75em; font-weight: bold; box-shadow:0 0 10px rgba(16,185,129,0.3);">
                             🔒 AES-256
                         </span>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # Pinned Message Banner
                     pair_key = f"{min(current_user, target_chat)}_{max(current_user, target_chat)}"
                     pinned_msg = data.get("pinned", {}).get(pair_key)
                     if pinned_msg:
@@ -769,7 +795,6 @@ else:
                             st.markdown('<div class="chat-message-container">', unsafe_allow_html=True)
                             for idx, m in enumerate(filtered_msgs):
                                 f_user = m.get("from")
-                                msg_id = m.get("id", f"msg_{idx}")
                                 try:
                                     dec_raw = cipher.decrypt(m['content'].encode()).decode()
                                     txt_display = dec_raw
@@ -791,7 +816,7 @@ else:
 
                                 is_mine = (f_user == current_user)
                                 alignment = "sent" if is_mine else "received"
-                                burn_html = '<span class="message-burn-icon" title="Burn on read">🔥</span>' if m.get("burn") else ""
+                                burn_html = '<span style="color:#f43f5e; margin-left:6px;" title="Burn on read">🔥</span>' if m.get("burn") else ""
                                 time_str = m['time'].split(" ")[1][:5]
                                 reply_text = m.get("reply")
 
@@ -821,7 +846,6 @@ else:
                                             use_container_width=True
                                         )
 
-                                    # Reactions display
                                     reactions = m.get("reactions", {})
                                     if reactions:
                                         r_html = "".join([f'<span class="reaction-badge">{emoji} {count}</span>' for emoji, count in reactions.items()])
@@ -830,7 +854,6 @@ else:
                                     st.markdown(f'<span class="message-time">{time_str}</span>', unsafe_allow_html=True)
                                     st.markdown('</div>', unsafe_allow_html=True)
 
-                                    # Quick Actions Popover (Reply, React, Pin)
                                     with st.popover("⚡ Actions"):
                                         st.caption("Quick Reaction")
                                         rc1, rc2, rc3, rc4 = st.columns(4)
