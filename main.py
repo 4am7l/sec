@@ -56,14 +56,20 @@ def load_data():
             data = json.load(f)
             data.setdefault("users", {})
             data.setdefault("messages", [])
+            modified = False
             for username, udata in data["users"].items():
                 udata.setdefault("role", "admin" if len(data["users"]) == 1 else "user")
                 udata.setdefault("blocked", [])
                 udata.setdefault("recovery_key", "")
-                udata.setdefault("user_id", generate_user_id())
+                if "user_id" not in udata or not udata["user_id"]:
+                    udata["user_id"] = generate_user_id()
+                    modified = True
                 udata.setdefault("friends", [])
                 udata.setdefault("friend_requests", [])
                 udata.setdefault("avatar", "")
+            
+            if modified:
+                save_data(data)
             return data
     except Exception as e:
         st.error(f"Data read error: {e}")
@@ -395,10 +401,11 @@ else:
 
         with t_search:
             s_query = st.text_input("Search user by Username or ID (e.g. #A123)", key="s_query_key")
-            if st.button("SEARCH USER", use_container_width=True):
+            if s_query:
                 found = False
+                clean_q = s_query.strip()
                 for uname, udata in data["users"].items():
-                    if uname != current_user and (s_query.strip().lower() == uname.lower() or s_query.strip().upper() == udata.get("user_id")):
+                    if uname != current_user and (clean_q.lower() == uname.lower() or clean_q.upper() == udata.get("user_id")):
                         found = True
                         u_av = udata.get("avatar", "")
                         u_id_val = udata.get("user_id", "")
@@ -422,17 +429,21 @@ else:
                                 st.info("Pending ⏳")
                             else:
                                 if st.button(f"➕ Add Friend", key=f"req_{uname}", use_container_width=True):
-                                    udata.setdefault("friend_requests", []).append(current_user)
-                                    save_data(data)
-                                    log_audit("FRIEND_REQUEST_SENT", f"'{current_user}' sent request to '{uname}'.")
+                                    fresh_data = load_data()
+                                    fresh_data["users"][uname].setdefault("friend_requests", [])
+                                    if current_user not in fresh_data["users"][uname]["friend_requests"]:
+                                        fresh_data["users"][uname]["friend_requests"].append(current_user)
+                                        save_data(fresh_data)
+                                        log_audit("FRIEND_REQUEST_SENT", f"'{current_user}' sent request to '{uname}'.")
                                     st.success(f"Request sent to {uname}!")
                                     st.rerun()
 
-                if not found and s_query:
+                if not found:
                     st.warning("No user found with that Username or ID.")
 
         with t_requests:
-            requests = user_info.get("friend_requests", [])
+            fresh_user_info = data["users"].get(current_user, {})
+            requests = fresh_user_info.get("friend_requests", [])
             if not requests:
                 st.info("No pending friend requests.")
             else:
@@ -454,17 +465,21 @@ else:
                         """, unsafe_allow_html=True)
                     with col_r2:
                         if st.button("ACCEPT ✅", key=f"acc_{req_user}", use_container_width=True):
-                            user_info.setdefault("friends", []).append(req_user)
-                            data["users"][req_user].setdefault("friends", []).append(current_user)
-                            user_info["friend_requests"].remove(req_user)
-                            save_data(data)
+                            fresh_data = load_data()
+                            fresh_data["users"][current_user].setdefault("friends", []).append(req_user)
+                            fresh_data["users"][req_user].setdefault("friends", []).append(current_user)
+                            if req_user in fresh_data["users"][current_user].get("friend_requests", []):
+                                fresh_data["users"][current_user]["friend_requests"].remove(req_user)
+                            save_data(fresh_data)
                             log_audit("FRIEND_ACCEPT", f"'{current_user}' accepted '{req_user}'.")
                             st.success(f"Accepted {req_user}!")
                             st.rerun()
                     with col_r3:
                         if st.button("DECLINE ❌", key=f"dec_{req_user}", use_container_width=True):
-                            user_info["friend_requests"].remove(req_user)
-                            save_data(data)
+                            fresh_data = load_data()
+                            if req_user in fresh_data["users"][current_user].get("friend_requests", []):
+                                fresh_data["users"][current_user]["friend_requests"].remove(req_user)
+                                save_data(fresh_data)
                             st.rerun()
 
     elif st.session_state.current_page == "👤 Profile":
