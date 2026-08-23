@@ -1,0 +1,70 @@
+{
+  "users": {
+    "user1": {
+      "password": "2fc577149080578c983f969a6ce84146fb79b5e17c0447d4e0718e039d62da19",
+      "recovery_key": "5355e304095eddf365fe0fb27bb4739a78f1e15aa5eee2a345527ad4e9900025",
+      "role": "admin",
+      "blocked": []
+    },
+    "user2": {
+      "password": "7a9f58a002c9682fceda675a74759336805785d34c0f10ce1cee6e8315a17711",
+      "recovery_key": "93477486dc85afcf51aa68a41cafc0ac48ed240c29c13c39eda42c69584ab55a",
+      "role": "user",
+      "blocked": []
+    },
+    "user3": {
+      "password": "d9f593bb452232b6a85b46816ee33292a4776a22c09973cbc138e4e91242c96c",
+      "recovery_key": "f466209712ebff9febeef88fc71efb5370107c4b69bfdacf3d9fe9d1a008d6c8",
+      "role": "user",
+      "blocked": []
+    },
+    "mohammad": {
+      "password": "84bb5a21ba8e9b88dd4f858e7b407dce5d7c3f1d86ac0510f74bbb80b5a40a21",
+      "recovery_key": "a289df4532210ae146b9349370b84d577b92f665633dd6b4e78bd9f30a0a40b9",
+      "role": "user",
+      "blocked": []
+    },
+    "omar": {
+      "password": "791784f8be3002fcac7e773448500034446159321d0e5ec1ce3282605fc51ec1",
+      "recovery_key": "dd652e8702ecd7c564cf3ddfc51d4dbe5fe856807884547f2a780d2c0c58f0b1",
+      "role": "user",
+      "blocked": []
+    },
+    "khalid": {
+      "password": "b6212053f867d403ceae174cfe7d90e7b56f0e21ec57f8bd2adc8c9d14d1da01",
+      "recovery_key": "82171fc9c7bce3856e306be87dd9ba0949844a07c19b16315328bfcc77716286",
+      "role": "user",
+      "blocked": []
+    }
+  },
+  "messages": [
+    {
+      "from": "user1",
+      "to": "user3",
+      "content": "gAAAAABqiyigC5konQFKDemhb2gUsRPYSHu1JnX44U0Xu1dMLTKQ9Dq4W-KJcgcCFmzQeLILGNgnCji5tNGLO1BjGPffAJRP2g==",
+      "time": "2026-08-23 20:06:40",
+      "burn": false
+    },
+    {
+      "from": "user1",
+      "to": "user3",
+      "content": "gAAAAABqiyilGeTZ6tiHyP7RBh7hQSJxL0nfIWBZWZhyZwsnsopLHDXiOeDHqPgRcyXFKRbqzDYnKFq2RXRqDIVi54I1H0IBjg==",
+      "time": "2026-08-23 20:06:45",
+      "burn": true
+    },
+    {
+      "from": "mohammad",
+      "to": "user1",
+      "content": "gAAAAABqiysxK0ZRE0GI_7WU0gulDkwwUBtfHEM9MCs7jAVKYAvgcuMEaHGOYf2WIBSPdKXIinEJU8wT5sm6cFvIoP_Qr_WGhg==",
+      "time": "2026-08-23 20:17:37",
+      "burn": false
+    },
+    {
+      "from": "user1",
+      "to": "user2",
+      "content": "gAAAAABqizAy2TLWZWsJwZ6RNMXBG6vbLrzdc_zoBRy6o8TybeBKz8qeTzeFPFQfBKFsj5nGfUh9IMYYIm67Y9o-btChPcL87w==",
+      "time": "2026-08-23 20:38:58",
+      "burn": false
+    }
+  ]
+}
