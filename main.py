@@ -160,40 +160,92 @@ st.markdown("""
         border-radius: 8px;
         border: 1px solid #1f232c;
         margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
 
-    .bubble-sent {
-        background-color: #282c37;
+    /* Modern Chat Layout */
+    .chat-message-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+    }
+
+    .message-row {
+        display: flex;
+        width: 100%;
+    }
+
+    .message-row.sent {
+        justify-content: flex-end;
+    }
+
+    .message-row.received {
+        justify-content: flex-start;
+    }
+
+    .message-bubble {
+        padding: 10px 14px;
+        max-width: 75%;
+        word-wrap: break-word;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+
+    .message-bubble.sent {
+        background-color: #2b5278; /* Subtle blue for sent messages */
         color: #f3f4f6;
-        padding: 10px 14px;
         border-radius: 12px 12px 2px 12px;
-        margin: 6px 0;
-        max-width: 75%;
-        float: right;
-        clear: both;
-        border: 1px solid #374151;
-        word-wrap: break-word;
+        border: 1px solid #3a6894;
     }
 
-    .bubble-received {
-        background-color: #16181d;
+    .message-bubble.received {
+        background-color: #1e2229;
         color: #d1d5db;
-        padding: 10px 14px;
         border-radius: 12px 12px 12px 2px;
-        margin: 6px 0;
-        max-width: 75%;
-        float: left;
-        clear: both;
-        border: 1px solid #282c37;
-        word-wrap: break-word;
+        border: 1px solid #2d333b;
     }
 
-    .bubble-time {
+    .message-time {
         font-size: 0.7em;
-        color: #9ca3af;
-        margin-top: 4px;
+        color: #8b949e;
         display: block;
         text-align: right;
+        margin-top: 4px;
+    }
+    
+    .message-burn-icon {
+        color: #ff5555;
+        font-size: 0.9em;
+        margin-left: 5px;
+    }
+
+    /* Image Attachment Styling */
+    .chat-image-thumbnail {
+        max-width: 100%;
+        max-height: 200px;
+        border-radius: 8px;
+        margin-top: 5px;
+        cursor: pointer;
+        border: 1px solid #374151;
+        transition: transform 0.2s;
+    }
+    
+    .chat-image-thumbnail:hover {
+        transform: scale(1.02);
+    }
+
+    /* File Attachment Styling */
+    .file-attachment-box {
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px dashed #4b5563;
+        border-radius: 6px;
+        padding: 8px;
+        margin-top: 5px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
 
     .card-box {
@@ -236,9 +288,8 @@ if "selected_chat" not in st.session_state:
 
 data = load_data()
 
-st.markdown("<h2 style='text-align: center; color: #e5e7eb;'>🔒 SECURE CHAT APPLICATION</h2>", unsafe_allow_html=True)
-
 if not st.session_state.current_user:
+    st.markdown("<h2 style='text-align: center; color: #e5e7eb; margin-bottom: 30px;'>🔒 SECURE CHAT APPLICATION</h2>", unsafe_allow_html=True)
     col_main = st.columns([1, 2, 1])[1]
     
     with col_main:
@@ -588,23 +639,26 @@ else:
         if not my_friends:
             st.info("You have no added friends yet. Go to '👥 Friends' page to search and add friends!")
         else:
-            col_contacts, col_chat = st.columns([1, 2.2])
+            col_contacts, col_chat = st.columns([1, 2.5])
 
             with col_contacts:
-                st.markdown("##### Friends")
+                st.markdown("##### 👥 Friends List")
                 for f_name in my_friends:
                     f_avatar = data["users"][f_name].get("avatar", "")
                     f_nick = my_nicknames.get(f_name, f_name)
                     is_sel = (st.session_state.selected_chat == f_name)
-                    btn_txt = f"🟢 {f_nick}" if is_sel else f"👤 {f_nick}"
-                    if st.button(btn_txt, key=f"user_sel_{f_name}", use_container_width=True):
+                    
+                    bg_color = "#1e293b" if is_sel else "transparent"
+                    border_color = "#3b82f6" if is_sel else "#1f232c"
+                    
+                    if st.button(f_nick, key=f"user_sel_{f_name}", use_container_width=True):
                         st.session_state.selected_chat = f_name
                         st.rerun()
 
             with col_chat:
                 target_chat = st.session_state.selected_chat
                 if not target_chat or target_chat not in my_friends:
-                    st.info("Select a friend from the left panel to display chat history.")
+                    st.info("👈 Select a friend from the left panel to start chatting.")
                 else:
                     target_id = data["users"][target_chat].get("user_id", "")
                     target_av = data["users"][target_chat].get("avatar", "")
@@ -612,13 +666,20 @@ else:
                     
                     st.markdown(f"""
                     <div class="chat-header-bar">
-                        {get_avatar_html(target_av, size=35)}
-                        <strong style="margin-left:8px;">Chatting with: {target_disp} <small>({target_chat} | {target_id})</small></strong>
-                        <small style="float:right; color:#9ca3af;">AES Encrypted</small>
+                        <div style="display: flex; align-items: center;">
+                            {get_avatar_html(target_av, size=40)}
+                            <div style="margin-left: 12px;">
+                                <strong style="font-size: 1.1em;">{target_disp}</strong>
+                                <span style="color: #9ca3af; font-size: 0.85em; display: block;">{target_id}</span>
+                            </div>
+                        </div>
+                        <span style="background-color: #064e3b; color: #34d399; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold;">
+                            🔒 E2E Encrypted
+                        </span>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    chat_container = st.container(height=400)
+                    chat_container = st.container(height=450)
 
                     @st.fragment(run_every="2s")
                     def render_live_chat():
@@ -632,8 +693,9 @@ else:
                         ]
                         
                         with chat_container:
+                            st.markdown('<div class="chat-message-container">', unsafe_allow_html=True)
                             for m in filtered_msgs:
-                                f_user, t_user = m.get("from"), m.get("to")
+                                f_user = m.get("from")
                                 try:
                                     dec_raw = cipher.decrypt(m['content'].encode()).decode()
                                     txt_display = dec_raw
@@ -650,45 +712,58 @@ else:
                                         file_bytes = base64.b64decode(b64_str)
 
                                 except Exception:
-                                    txt_display = "[Decryption Error]"
+                                    txt_display = "⚠️ <i>[Message corrupted or key mismatch]</i>"
                                     file_bytes = None
 
-                                burn_str = " 🔥" if m.get("burn") else ""
-                                time_str = m['time'].split(" ")[1][:5]
                                 is_mine = (f_user == current_user)
-
-                                bubble_class = "bubble-sent" if is_mine else "bubble-received"
+                                alignment = "sent" if is_mine else "received"
+                                burn_html = '<span class="message-burn-icon" title="Self-destructing message">🔥</span>' if m.get("burn") else ""
+                                time_str = m['time'].split(" ")[1][:5]
                                 
-                                if txt_display:
+                                # Render text message if present
+                                if txt_display or not file_bytes:
                                     st.markdown(f"""
-                                    <div class="{bubble_class}">
-                                        {txt_display}{burn_str}
-                                        <span class="bubble-time">{time_str}</span>
+                                    <div class="message-row {alignment}">
+                                        <div class="message-bubble {alignment}">
+                                            <div>{txt_display}{burn_html}</div>
+                                            <span class="message-time">{time_str}</span>
+                                        </div>
                                     </div>
                                     """, unsafe_allow_html=True)
 
+                                # Render file attachment
                                 if file_bytes:
-                                    with st.expander(f"📁 Attachment: {file_name}", expanded=True):
-                                        if file_mime and "image" in file_mime:
-                                            st.image(file_bytes, caption=file_name, use_container_width=True)
-                                        elif file_mime and "text" in file_mime:
-                                            try:
-                                                st.caption(file_bytes.decode('utf-8')[:200] + "...")
-                                            except Exception:
-                                                pass
-
-                                        st.download_button(
-                                            label=f"⬇️ Download {file_name}",
-                                            data=file_bytes,
-                                            file_name=file_name,
-                                            mime=file_mime,
-                                            key=f"dl_{m['time']}_{f_user}"
-                                        )
+                                    st.markdown(f'<div class="message-row {alignment}"><div class="message-bubble {alignment}">', unsafe_allow_html=True)
+                                    
+                                    if file_mime and "image" in file_mime:
+                                        # Use native st.image for click-to-expand functionality
+                                        st.image(file_bytes, caption=file_name, use_container_width=True)
+                                    else:
+                                        st.markdown(f"""
+                                        <div class="file-attachment-box">
+                                            <span style="font-size: 1.5em;">📄</span>
+                                            <div style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                <strong>{file_name}</strong>
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    
+                                    st.download_button(
+                                        label="⬇️ Download",
+                                        data=file_bytes,
+                                        file_name=file_name,
+                                        mime=file_mime,
+                                        key=f"dl_{m['time']}_{f_user}_{secrets.token_hex(4)}",
+                                        use_container_width=True
+                                    )
+                                    
+                                    st.markdown(f'<span class="message-time">{time_str}</span></div></div>', unsafe_allow_html=True)
 
                                 if not is_mine and m.get("burn"):
                                     msgs_to_burn.append(m)
 
-                            st.markdown('<div id="end-of-chat"></div>', unsafe_allow_html=True)
+                            st.markdown('</div><div id="end-of-chat"></div>', unsafe_allow_html=True)
+                            
                             components.html("""
                             <script>
                                 function scrollToBottom() {
@@ -709,16 +784,19 @@ else:
 
                     render_live_chat()
 
-                    st.markdown("<div style='clear:both;'></div><br>", unsafe_allow_html=True)
+                    st.markdown("<div style='clear:both; margin-top:10px;'></div>", unsafe_allow_html=True)
 
-                    with st.form(key="send_form", clear_on_submit=True):
-                        in_msg = st.text_input("Type a message...", key="in_msg_key", label_visibility="collapsed")
-                        up_file = st.file_uploader("Attach File (Img, PDF, TXT)", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
+                    with st.form(key="send_form", clear_on_submit=True, border=True):
+                        in_msg = st.text_area("Message", placeholder="Type a message...", key="in_msg_key", label_visibility="collapsed", height=68)
                         
-                        c_chk, c_btn = st.columns([1, 1])
+                        c_file, c_chk, c_btn = st.columns([2, 1, 1])
+                        with c_file:
+                            up_file = st.file_uploader("Attach", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
                         with c_chk:
-                            chk_burn = st.checkbox("Self-destruct")
+                            st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+                            chk_burn = st.checkbox("🔥 Burn on read")
                         with c_btn:
+                            st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
                             btn_sub = st.form_submit_button("SEND 🚀", use_container_width=True)
 
                         if btn_sub:
@@ -727,7 +805,7 @@ else:
                             if current_user in recipient_blocked:
                                 st.error("User has blocked you.")
                             elif not in_msg.strip() and not up_file:
-                                st.warning("Cannot send an empty message or empty file.")
+                                st.warning("Cannot send an empty message.")
                             else:
                                 final_payload = in_msg.strip()
                                 
@@ -746,7 +824,7 @@ else:
                                     "burn": chk_burn
                                 })
                                 save_data(fresh_data)
-                                log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}' (with attachment).")
+                                log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}'.")
                                 st.rerun()
 
     elif st.session_state.current_page == "🚫 Blocklist":
