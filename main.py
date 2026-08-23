@@ -103,19 +103,19 @@ def is_strong_password(password):
 
 def get_avatar_html(avatar_b64, size=45, status_icon="🟢"):
     if avatar_b64:
-        img_html = f'<img src="data:image/png;base64,{avatar_b64}" style="width:{size}px; height:{size}px; border-radius:50%; object-fit:cover; border:2px solid #6366f1; box-shadow:0 0 10px rgba(99,102,241,0.5);">'
+        img_html = f'<img src="data:image/png;base64,{avatar_b64}" style="width:{size}px; height:{size}px; border-radius:50%; object-fit:cover; border:2px solid #3b82f6;">'
     else:
-        img_html = f'<div style="width:{size}px; height:{size}px; border-radius:50%; background:linear-gradient(135deg, #4f46e5, #0f172a); color:#f8fafc; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #6366f1; font-size:{int(size/2.2)}px; box-shadow:0 0 10px rgba(99,102,241,0.5);">👤</div>'
+        img_html = f'<div style="width:{size}px; height:{size}px; border-radius:50%; background:linear-gradient(135deg, #2563eb, #1e1b4b); color:#f8fafc; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #3b82f6; font-size:{int(size/2.2)}px;">👤</div>'
     
     status_symbol = status_icon.split()[0] if status_icon else "🟢"
-    return f'<div style="position:relative; display:inline-block; vertical-align:middle;">{img_html}<span style="position:absolute; bottom:0; right:0; font-size:{int(size/3.5)}px; background:#0b0f19; border-radius:50%; padding:2px; box-shadow:0 0 5px rgba(0,0,0,0.8);">{status_symbol}</span></div>'
+    return f'<div style="position:relative; display:inline-block; vertical-align:middle;">{img_html}<span style="position:absolute; bottom:0; right:0; font-size:{int(size/3.5)}px; background:#0b0f19; border-radius:50%; padding:2px;">{status_symbol}</span></div>'
 
 def navigate_to(page_name, target_user=None):
     st.session_state.current_page = page_name
     if target_user:
         st.session_state.selected_chat = target_user
 
-st.set_page_config(page_title="Ultra Secure Cyber Chat", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Ultra Secure Messenger", page_icon="⚡", layout="wide")
 
 st.markdown("""
 <style>
@@ -126,19 +126,15 @@ st.markdown("""
     }
 
     .stApp {
-        background: radial-gradient(circle at 15% 15%, #1e1b4b 0%, #0b0f19 50%, #030712 100%);
+        background: #090d16;
         color: #f1f5f9;
     }
 
-    /* Cyber Sidebar Container */
     section[data-testid="stSidebar"] {
-        background: rgba(15, 23, 42, 0.75) !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
+        background: #111827 !important;
         border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
     }
 
-    /* Custom Navigation Buttons (Cards Style) */
     div[data-testid="stSidebar"] .stButton > button {
         background: rgba(30, 41, 59, 0.4) !important;
         color: #94a3b8 !important;
@@ -151,180 +147,131 @@ st.markdown("""
         justify-content: flex-start !important;
         display: flex !important;
         gap: 10px !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        box-shadow: none !important;
+        transition: all 0.25s ease !important;
     }
 
     div[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(99, 102, 241, 0.15) !important;
+        background: rgba(59, 130, 246, 0.15) !important;
         color: #f1f5f9 !important;
-        border-color: rgba(129, 140, 248, 0.3) !important;
+        border-color: rgba(96, 165, 250, 0.3) !important;
         transform: translateX(4px) !important;
     }
 
-    /* Active Nav Item Styling */
     .nav-active-btn button {
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
         color: #ffffff !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4) !important;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
     }
 
-    .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
-        background: rgba(30, 41, 59, 0.6) !important;
-        color: #f8fafc !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        border-radius: 12px !important;
-        backdrop-filter: blur(8px) !important;
+    /* Instagram / Messenger Style Chat Header */
+    .chat-header-bar {
+        background: #111827;
+        padding: 14px 20px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
 
-    .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
-        border-color: #818cf8 !important;
-        box-shadow: 0 0 15px rgba(129, 140, 248, 0.35) !important;
+    /* Modern Bubble Container */
+    .chat-message-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 8px;
+    }
+
+    .msg-wrapper {
+        display: flex;
+        width: 100%;
+        margin-bottom: 2px;
+    }
+
+    .msg-wrapper.sent {
+        justify-content: flex-end;
+    }
+
+    .msg-wrapper.received {
+        justify-content: flex-start;
+    }
+
+    /* Instagram/Messenger Style Bubbles */
+    .insta-bubble {
+        max-width: 68%;
+        padding: 12px 16px;
+        border-radius: 18px;
+        position: relative;
+        font-size: 0.95em;
+        line-height: 1.45;
+        word-wrap: break-word;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    }
+
+    .msg-wrapper.sent .insta-bubble {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        color: #ffffff;
+        border-bottom-right-radius: 4px;
+    }
+
+    .msg-wrapper.received .insta-bubble {
+        background: #1e293b;
+        color: #f1f5f9;
+        border-bottom-left-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .reply-box {
+        background: rgba(0, 0, 0, 0.2);
+        border-left: 3px solid #60a5fa;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8em;
+        margin-bottom: 6px;
+        color: #dbeafe;
+    }
+
+    .msg-time {
+        font-size: 0.68em;
+        opacity: 0.75;
+        display: block;
+        text-align: right;
+        margin-top: 4px;
+    }
+
+    .reactions-row {
+        display: flex;
+        gap: 4px;
+        margin-top: 6px;
+    }
+
+    .reaction-pill {
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 12px;
+        padding: 1px 6px;
+        font-size: 0.75em;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .card-box {
-        background: rgba(17, 24, 39, 0.6);
+        background: #111827;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
         padding: 22px;
         text-align: center;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        transition: transform 0.3s ease, border-color 0.3s ease;
-    }
-
-    .card-box:hover {
-        transform: translateY(-4px);
-        border-color: rgba(129, 140, 248, 0.4);
     }
 
     .user-card {
-        background: rgba(17, 24, 39, 0.5);
+        background: #111827;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
-        padding: 14px 18px;
-        margin-bottom: 12px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        backdrop-filter: blur(10px);
-        transition: all 0.3s ease;
-    }
-
-    .user-card:hover {
-        border-color: rgba(99, 102, 241, 0.5);
-        box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
-    }
-
-    .chat-header-bar {
-        background: rgba(17, 24, 39, 0.7);
-        padding: 16px 24px;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        backdrop-filter: blur(16px);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-    }
-
-    .chat-message-container {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-        padding: 12px;
-    }
-
-    .message-row {
-        display: flex;
-        width: 100%;
-        margin-bottom: 4px;
-    }
-
-    .message-row.sent {
-        justify-content: flex-end;
-    }
-
-    .message-row.received {
-        justify-content: flex-start;
-    }
-
-    .message-bubble {
-        padding: 14px 18px;
-        max-width: 70%;
-        word-wrap: break-word;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(8px);
-        position: relative;
-    }
-
-    .message-bubble.sent {
-        background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
-        color: #ffffff;
-        border-radius: 20px 20px 4px 20px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .message-bubble.received {
-        background: rgba(30, 41, 59, 0.8);
-        color: #f1f5f9;
-        border-radius: 20px 20px 20px 4px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .reply-quote {
-        background: rgba(0, 0, 0, 0.25);
-        border-left: 3px solid #c084fc;
-        padding: 6px 10px;
-        border-radius: 6px;
-        font-size: 0.82em;
-        margin-bottom: 8px;
-        color: #e9d5ff;
-    }
-
-    .message-time {
-        font-size: 0.68em;
-        color: rgba(255, 255, 255, 0.6);
-        display: block;
-        text-align: right;
-        margin-top: 6px;
-    }
-
-    .reactions-bar {
-        display: flex;
-        gap: 6px;
-        margin-top: 8px;
-    }
-
-    .reaction-badge {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 16px;
-        padding: 3px 8px;
-        font-size: 0.78em;
-        color: #f1f5f9;
-    }
-
-    .pinned-banner {
-        background: linear-gradient(90deg, rgba(88, 28, 135, 0.5) 0%, rgba(30, 27, 75, 0.5) 100%);
-        border: 1px solid rgba(168, 85, 247, 0.4);
-        padding: 10px 18px;
-        border-radius: 12px;
-        color: #f3e8ff;
-        font-size: 0.9em;
-        margin-bottom: 14px;
-        backdrop-filter: blur(10px);
-    }
-
-    .recovery-info {
-        background: rgba(15, 23, 42, 0.8);
-        border-left: 4px solid #a855f7;
-        padding: 16px;
-        border-radius: 12px;
-        margin-top: 14px;
-        box-shadow: 0 4px 20px rgba(168, 85, 247, 0.15);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -344,8 +291,8 @@ if "reply_to_msg" not in st.session_state:
 data = load_data()
 
 if not st.session_state.current_user:
-    st.markdown("<h1 style='text-align: center; background: linear-gradient(135deg, #a855f7, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size:2.8em; font-weight:800; margin-bottom: 5px;'>⚡ CYBER SECURE CHAT</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #94a3b8; font-size:1.05em; margin-bottom: 40px;'>Encrypted Private Communications Platform</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color:#3b82f6; font-size:2.8em; font-weight:800; margin-bottom: 5px;'>⚡ CYBER MESSENGER</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #94a3b8; font-size:1.05em; margin-bottom: 40px;'>Encrypted Direct Messaging Platform</p>", unsafe_allow_html=True)
     col_main = st.columns([1, 2, 1])[1]
     
     with col_main:
@@ -410,7 +357,7 @@ if not st.session_state.current_user:
 
                     st.success("Account created successfully!")
                     st.markdown(f"""
-                    <div class="recovery-info">
+                    <div style="background:#111827; border-left:4px solid #3b82f6; padding:14px; border-radius:8px; margin-top:10px;">
                         <strong>YOUR PERMANENT ID:</strong> <code>{u_id}</code><br>
                         <strong>SAVE RECOVERY KEY:</strong> <code>{rec_k}</code>
                     </div>
@@ -450,7 +397,7 @@ else:
     user_bio = user_info.get("bio", "")
     my_nicknames = user_info.get("nicknames", {})
 
-    sidebar_profile = f'<div style="text-align: center; padding: 12px 0;">{get_avatar_html(avatar_b64, size=85, status_icon=status_icon)}<h3 style="margin-top: 12px; margin-bottom: 2px; color:#f8fafc; font-weight:700;">{current_user}</h3><p style="color: #c084fc; font-size: 0.82em; margin-bottom: 6px;">"{status_text}"</p><span style="background:linear-gradient(135deg, #4f46e5, #9333ea); color:#ffffff; padding:3px 10px; border-radius:12px; font-size:0.75em; font-weight:bold; box-shadow:0 0 10px rgba(147, 51, 234, 0.4);">{role.upper()}</span></div>'
+    sidebar_profile = f'<div style="text-align: center; padding: 12px 0;">{get_avatar_html(avatar_b64, size=85, status_icon=status_icon)}<h3 style="margin-top: 12px; margin-bottom: 2px; color:#f8fafc; font-weight:700;">{current_user}</h3><p style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"{status_text}"</p><span style="background:#2563eb; color:#ffffff; padding:3px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">{role.upper()}</span></div>'
     st.sidebar.markdown(sidebar_profile, unsafe_allow_html=True)
     
     st.sidebar.markdown("<small style='color:#94a3b8;'>Your Permanent ID:</small>", unsafe_allow_html=True)
@@ -494,7 +441,7 @@ else:
         with c1:
             st.markdown(f"""
             <div class="card-box">
-                <h2 style="color:#c084fc; margin:0; font-size:2.2em; font-weight:800;">{len(user_info.get('friends', []))}</h2>
+                <h2 style="color:#60a5fa; margin:0; font-size:2.2em; font-weight:800;">{len(user_info.get('friends', []))}</h2>
                 <small style="color:#94a3b8; font-size:0.9em;">Active Friends</small>
             </div>
             """, unsafe_allow_html=True)
@@ -511,7 +458,7 @@ else:
             my_count = sum(1 for m in data['messages'] if m.get('to') == current_user or m.get('from') == current_user)
             st.markdown(f"""
             <div class="card-box">
-                <h2 style="color:#34d399; margin:0; font-size:2.2em; font-weight:800;">{my_count}</h2>
+                <h2 style="color:#10b981; margin:0; font-size:2.2em; font-weight:800;">{my_count}</h2>
                 <small style="color:#94a3b8; font-size:0.9em;">Encrypted Messages</small>
             </div>
             """, unsafe_allow_html=True)
@@ -544,7 +491,7 @@ else:
 
                         col_card, col_action = st.columns([3, 1])
                         with col_card:
-                            search_card_html = f'<div class="user-card"><div style="display:flex; align-items:center; gap:14px;">{get_avatar_html(u_av, size=52, status_icon=u_st_icon)}<div><strong style="font-size:1.15em; color:#f8fafc;">{uname}</strong><span style="color:#a855f7; font-size:0.88em; margin-left:6px;">({u_id_val})</span><p style="color:#94a3b8; font-size:0.82em; margin:2px 0 0 0;">{u_bio}</p></div></div></div>'
+                            search_card_html = f'<div class="user-card"><div style="display:flex; align-items:center; gap:14px;">{get_avatar_html(u_av, size=52, status_icon=u_st_icon)}<div><strong style="font-size:1.15em; color:#f8fafc;">{uname}</strong><span style="color:#60a5fa; font-size:0.88em; margin-left:6px;">({u_id_val})</span><p style="color:#94a3b8; font-size:0.82em; margin:2px 0 0 0;">{u_bio}</p></div></div></div>'
                             st.markdown(search_card_html, unsafe_allow_html=True)
 
                         with col_action:
@@ -580,7 +527,7 @@ else:
                     display_nick = my_nicknames.get(f_item, "")
                     label_str = f"{display_nick} ({f_item})" if display_nick else f_item
 
-                    friend_card_html = f'<div class="user-card"><div style="display:flex; align-items:center; gap:14px;">{get_avatar_html(f_av, size=48, status_icon=f_st_icon)}<div><strong style="font-size:1.1em; color:#f8fafc;">{label_str}</strong><span style="color:#94a3b8; font-size:0.82em; margin-left:6px;">({f_id})</span><small style="display:block; color:#c084fc; font-size:0.78em;">{f_st_txt}</small></div></div></div>'
+                    friend_card_html = f'<div class="user-card"><div style="display:flex; align-items:center; gap:14px;">{get_avatar_html(f_av, size=48, status_icon=f_st_icon)}<div><strong style="font-size:1.1em; color:#f8fafc;">{label_str}</strong><span style="color:#94a3b8; font-size:0.82em; margin-left:6px;">({f_id})</span><small style="display:block; color:#60a5fa; font-size:0.78em;">{f_st_txt}</small></div></div></div>'
                     st.markdown(friend_card_html, unsafe_allow_html=True)
 
                     c_act1, c_act2, c_act3, c_act4 = st.columns([1, 1.2, 1, 1])
@@ -699,7 +646,7 @@ else:
             col_contacts, col_chat = st.columns([1, 2.5])
 
             with col_contacts:
-                st.markdown("##### 💬 Friends List")
+                st.markdown("##### 💬 Direct Messages")
                 for f_name in my_friends:
                     f_udata = data["users"].get(f_name, {})
                     f_avatar = f_udata.get("avatar", "")
@@ -727,15 +674,15 @@ else:
                     target_st_txt = target_udata.get("status_text", "Available")
                     target_disp = my_nicknames.get(target_chat, target_chat)
                     
-                    chat_header_html = f'<div class="chat-header-bar"><div style="display: flex; align-items: center; gap: 14px;">{get_avatar_html(target_av, size=46, status_icon=target_st_icon)}<div><strong style="font-size: 1.2em; color:#f8fafc;">{target_disp}</strong><span style="color: #c084fc; font-size: 0.88em; margin-left: 6px;">({target_chat} {target_id})</span><small style="display:block; color:#94a3b8; font-size: 0.8em;">{target_st_txt}</small></div></div><span style="background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; padding: 5px 12px; border-radius: 12px; font-size: 0.75em; font-weight: bold; box-shadow:0 0 10px rgba(16,185,129,0.3);">🔒 AES-256</span></div>'
+                    chat_header_html = f'<div class="chat-header-bar"><div style="display: flex; align-items: center; gap: 14px;">{get_avatar_html(target_av, size=46, status_icon=target_st_icon)}<div><strong style="font-size: 1.2em; color:#f8fafc;">{target_disp}</strong><span style="color: #60a5fa; font-size: 0.88em; margin-left: 6px;">({target_chat} {target_id})</span><small style="display:block; color:#94a3b8; font-size: 0.8em;">{target_st_txt}</small></div></div><span style="background:#059669; color:#ffffff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted</span></div>'
                     st.markdown(chat_header_html, unsafe_allow_html=True)
 
                     pair_key = f"{min(current_user, target_chat)}_{max(current_user, target_chat)}"
                     pinned_msg = data.get("pinned", {}).get(pair_key)
                     if pinned_msg:
-                        st.markdown(f'<div class="pinned-banner">📌 <strong>Pinned Message:</strong> {pinned_msg}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="background:#1e1b4b; border:1px solid #4338ca; padding:8px 14px; border-radius:8px; font-size:0.85em; margin-bottom:12px;">📌 <strong>Pinned:</strong> {pinned_msg}</div>', unsafe_allow_html=True)
 
-                    chat_container = st.container(height=420)
+                    chat_container = st.container(height=430)
 
                     @st.fragment(run_every="2s")
                     def render_live_chat():
@@ -768,69 +715,86 @@ else:
                                         file_bytes = base64.b64decode(b64_str)
 
                                 except Exception:
-                                    txt_display = "⚠️ <i>[Message decryption failed]</i>"
+                                    txt_display = "⚠️ <i>[Decryption failed]</i>"
                                     file_bytes = None
 
                                 is_mine = (f_user == current_user)
                                 alignment = "sent" if is_mine else "received"
-                                burn_html = '<span style="color:#f43f5e; margin-left:6px;" title="Burn on read">🔥</span>' if m.get("burn") else ""
+                                burn_html = ' 🔥' if m.get("burn") else ""
                                 time_str = m['time'].split(" ")[1][:5]
                                 reply_text = m.get("reply")
 
-                                st.markdown(f'<div class="message-row {alignment}">', unsafe_allow_html=True)
+                                # Message Layout with integrated popover inside bubble wrapper
+                                col_b1, col_b2 = st.columns([0.88, 0.12]) if is_mine else st.columns([0.12, 0.88])
                                 
-                                with st.container():
-                                    st.markdown(f'<div class="message-bubble {alignment}">', unsafe_allow_html=True)
-                                    
-                                    if reply_text:
-                                        st.markdown(f'<div class="reply-quote">↩️ {reply_text}</div>', unsafe_allow_html=True)
+                                bubble_content = ""
+                                if reply_text:
+                                    bubble_content += f'<div class="reply-box">↩️ {reply_text}</div>'
+                                if txt_display:
+                                    bubble_content += f'<div>{txt_display}{burn_html}</div>'
 
-                                    if txt_display:
-                                        st.markdown(f'<div>{txt_display}{burn_html}</div>', unsafe_allow_html=True)
+                                reactions = m.get("reactions", {})
+                                if reactions:
+                                    r_pills = "".join([f'<span class="reaction-pill">{emoji} {count}</span>' for emoji, count in reactions.items()])
+                                    bubble_content += f'<div class="reactions-row">{r_pills}</div>'
 
-                                    if file_bytes:
-                                        if file_mime and "image" in file_mime:
-                                            st.image(file_bytes, caption=file_name, use_container_width=True)
-                                        else:
-                                            st.markdown(f"📄 **{file_name}**")
+                                bubble_content += f'<span class="msg-time">{time_str}</span>'
 
-                                        st.download_button(
-                                            label="⬇️ Download Attachment",
-                                            data=file_bytes,
-                                            file_name=file_name,
-                                            mime=file_mime,
-                                            key=f"dl_{m['time']}_{idx}",
-                                            use_container_width=True
-                                        )
-
-                                    reactions = m.get("reactions", {})
-                                    if reactions:
-                                        r_html = "".join([f'<span class="reaction-badge">{emoji} {count}</span>' for emoji, count in reactions.items()])
-                                        st.markdown(f'<div class="reactions-bar">{r_html}</div>', unsafe_allow_html=True)
-
-                                    st.markdown(f'<span class="message-time">{time_str}</span>', unsafe_allow_html=True)
-                                    st.markdown('</div>', unsafe_allow_html=True)
-
-                                    with st.popover("⚡ Actions"):
-                                        st.caption("Quick Reaction")
-                                        rc1, rc2, rc3, rc4 = st.columns(4)
-                                        for em in ["❤️", "👍", "🔥", "😂"]:
-                                            if rc1.button(em, key=f"react_{idx}_{em}"):
-                                                m.setdefault("reactions", {})
-                                                m["reactions"][em] = m["reactions"].get(em, 0) + 1
+                                if is_mine:
+                                    with col_b1:
+                                        st.markdown(f'<div class="msg-wrapper sent"><div class="insta-bubble">{bubble_content}</div></div>', unsafe_allow_html=True)
+                                    with col_b2:
+                                        with st.popover("⚙️"):
+                                            st.caption("Actions")
+                                            for em in ["❤️", "👍", "🔥", "😂"]:
+                                                if st.button(em, key=f"react_{idx}_{em}"):
+                                                    m.setdefault("reactions", {})
+                                                    m["reactions"][em] = m["reactions"].get(em, 0) + 1
+                                                    save_data(live_data)
+                                                    st.rerun()
+                                            if st.button("↩️", key=f"rpl_btn_{idx}"):
+                                                st.session_state.reply_to_msg = txt_display[:30] if txt_display else "Attachment"
+                                                st.rerun()
+                                            if st.button("📌", key=f"pin_btn_{idx}"):
+                                                live_data.setdefault("pinned", {})[pair_key] = txt_display[:50]
                                                 save_data(live_data)
                                                 st.rerun()
+                                else:
+                                    with col_b1:
+                                        with st.popover("⚙️"):
+                                            st.caption("Actions")
+                                            for em in ["❤️", "👍", "🔥", "😂"]:
+                                                if st.button(em, key=f"react_{idx}_{em}"):
+                                                    m.setdefault("reactions", {})
+                                                    m["reactions"][em] = m["reactions"].get(em, 0) + 1
+                                                    save_data(live_data)
+                                                    st.rerun()
+                                            if st.button("↩️", key=f"rpl_btn_{idx}"):
+                                                st.session_state.reply_to_msg = txt_display[:30] if txt_display else "Attachment"
+                                                st.rerun()
+                                            if st.button("📌", key=f"pin_btn_{idx}"):
+                                                live_data.setdefault("pinned", {})[pair_key] = txt_display[:50]
+                                                save_data(live_data)
+                                                st.rerun()
+                                    with col_b2:
+                                        st.markdown(f'<div class="msg-wrapper received"><div class="insta-bubble">{bubble_content}</div></div>', unsafe_allow_html=True)
 
-                                        if st.button("↩️ Reply", key=f"rpl_btn_{idx}"):
-                                            st.session_state.reply_to_msg = txt_display[:30] if txt_display else "File Attachment"
-                                            st.rerun()
+                                if file_bytes:
+                                    st.markdown(f'<div class="msg-wrapper {alignment}"><div class="insta-bubble">', unsafe_allow_html=True)
+                                    if file_mime and "image" in file_mime:
+                                        st.image(file_bytes, caption=file_name, use_container_width=True)
+                                    else:
+                                        st.markdown(f"📄 **{file_name}**")
 
-                                        if st.button("📌 Pin Message", key=f"pin_btn_{idx}"):
-                                            live_data.setdefault("pinned", {})[pair_key] = txt_display[:50]
-                                            save_data(live_data)
-                                            st.rerun()
-
-                                st.markdown('</div>', unsafe_allow_html=True)
+                                    st.download_button(
+                                        label="⬇️ Download Attachment",
+                                        data=file_bytes,
+                                        file_name=file_name,
+                                        mime=file_mime,
+                                        key=f"dl_{m['time']}_{idx}",
+                                        use_container_width=True
+                                    )
+                                    st.markdown('</div></div>', unsafe_allow_html=True)
 
                                 if not is_mine and m.get("burn"):
                                     msgs_to_burn.append(m)
@@ -863,7 +827,7 @@ else:
                         st.info(f"↩️ Replying to: *{st.session_state.reply_to_msg}*")
 
                     with st.form(key="send_form", clear_on_submit=True, border=True):
-                        in_msg = st.text_area("Message", placeholder="Type a secure message...", key="in_msg_key", label_visibility="collapsed", height=68)
+                        in_msg = st.text_area("Message", placeholder="Message...", key="in_msg_key", label_visibility="collapsed", height=68)
                         
                         c_file, c_chk, c_btn = st.columns([2, 1, 1])
                         with c_file:
