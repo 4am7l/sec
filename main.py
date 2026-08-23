@@ -343,25 +343,26 @@ else:
     st.sidebar.code(user_id, language=None)
     st.sidebar.markdown("---")
 
-    if st.sidebar.button("🏠 Dashboard", use_container_width=True):
-        st.session_state.current_page = "Dashboard"
-        st.rerun()
-
-    menu_opts = ["💬 Messages", "👥 Friends", "👤 Profile", "🚫 Blocklist", "⚙️ Settings"]
+    menu_opts = ["🏠 Dashboard", "💬 Messages", "👥 Friends", "👤 Profile", "🚫 Blocklist", "⚙️ Settings"]
     if role == "admin":
         menu_opts.append("📊 Admin Panel")
 
-    sel_page = st.sidebar.radio("NAVIGATION", menu_opts, key="nav_sel")
-    if sel_page != st.session_state.current_page and sel_page != "Dashboard":
-        st.session_state.current_page = sel_page
+    if "nav_sel" not in st.session_state:
+        st.session_state.nav_sel = st.session_state.current_page
+
+    def on_nav_change():
+        st.session_state.current_page = st.session_state.nav_sel
+
+    st.sidebar.radio("NAVIGATION", menu_opts, key="nav_sel", on_change=on_nav_change)
 
     st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Logout", use_container_width=True):
         st.session_state.current_user = None
-        st.session_state.current_page = "Dashboard"
+        st.session_state.current_page = "🏠 Dashboard"
+        st.session_state.nav_sel = "🏠 Dashboard"
         st.rerun()
 
-    if st.session_state.current_page == "Dashboard":
+    if st.session_state.current_page == "🏠 Dashboard":
         st.markdown("### 📊 System Overview")
         c1, c2, c3 = st.columns(3)
         
@@ -393,6 +394,7 @@ else:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💬 Open Messages", use_container_width=True):
             st.session_state.current_page = "💬 Messages"
+            st.session_state.nav_sel = "💬 Messages"
             st.rerun()
 
     elif st.session_state.current_page == "👥 Friends":
@@ -475,6 +477,7 @@ else:
                         if st.button(f"💬 Chat", key=f"chat_btn_{f_item}", use_container_width=True):
                             st.session_state.selected_chat = f_item
                             st.session_state.current_page = "💬 Messages"
+                            st.session_state.nav_sel = "💬 Messages"
                             st.rerun()
 
                     with c_act2:
