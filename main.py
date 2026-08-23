@@ -329,12 +329,15 @@ else:
     avatar_b64 = user_info.get("avatar", "")
 
     st.sidebar.markdown(f"""
-    <div style="text-align: center; margin-bottom: 10px;">
+    <div style="text-align: center; margin-bottom: 5px;">
         {get_avatar_html(avatar_b64, size=75)}
         <h3 style="margin-top: 8px; margin-bottom: 2px;">{current_user}</h3>
-        <small style="color: #9ca3af;">ID: <code>{user_id}</code> | Role: <code>{role.upper()}</code></small>
+        <small style="color: #9ca3af;">Role: <code>{role.upper()}</code></small>
     </div>
     """, unsafe_allow_html=True)
+    
+    st.sidebar.markdown("<small style='color:#9ca3af;'>Your ID (Click to copy):</small>", unsafe_allow_html=True)
+    st.sidebar.code(user_id, language=None)
     st.sidebar.markdown("---")
 
     if st.sidebar.button("🏠 Dashboard", use_container_width=True):
@@ -397,7 +400,7 @@ else:
             if st.button("🔄 Refresh List", use_container_width=True):
                 st.rerun()
 
-        t_search, t_requests = st.tabs(["🔍 Search & Add", "📩 Pending Requests"])
+        t_search, t_my_friends, t_requests = st.tabs(["🔍 Search & Add", "👥 My Friends", "📩 Pending Requests"])
 
         with t_search:
             s_query = st.text_input("Search user by Username or ID (e.g. #A123)", key="s_query_key")
@@ -440,6 +443,33 @@ else:
 
                 if not found:
                     st.warning("No user found with that Username or ID.")
+
+        with t_my_friends:
+            my_f_list = user_info.get("friends", [])
+            if not my_f_list:
+                st.info("No friends added yet.")
+            else:
+                for f_item in my_f_list:
+                    f_udata = data["users"].get(f_item, {})
+                    f_av = f_udata.get("avatar", "")
+                    f_id = f_udata.get("user_id", "")
+
+                    col_f1, col_f2 = st.columns([3, 1])
+                    with col_f1:
+                        st.markdown(f"""
+                        <div class="user-card">
+                            <div>
+                                {get_avatar_html(f_av, size=45)}
+                                <strong style="font-size:1.1em; margin-left:10px;">{f_item}</strong>
+                                <span style="color:#9ca3af; font-size:0.85em; margin-left:8px;">({f_id})</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    with col_f2:
+                        if st.button(f"💬 Chat", key=f"go_chat_{f_item}", use_container_width=True):
+                            st.session_state.selected_chat = f_item
+                            st.session_state.current_page = "💬 Messages"
+                            st.rerun()
 
         with t_requests:
             fresh_user_info = data["users"].get(current_user, {})
