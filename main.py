@@ -90,6 +90,12 @@ def is_strong_password(password):
         return False, "Password must contain both letters and digits."
     return True, ""
 
+def get_avatar_html(avatar_b64, size=45):
+    if avatar_b64:
+        return f'<img src="data:image/png;base64,{avatar_b64}" style="width:{size}px; height:{size}px; border-radius:50%; object-fit:cover; border:2px solid #374151; display:inline-block; vertical-align:middle;">'
+    else:
+        return f'<div style="width:{size}px; height:{size}px; border-radius:50%; background-color:#282c37; color:#d1d5db; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #374151; vertical-align:middle;">👤</div>'
+
 st.set_page_config(page_title="Secure Chat App", page_icon="🔒", layout="wide")
 
 st.markdown("""
@@ -185,20 +191,23 @@ st.markdown("""
         text-align: center;
     }
 
+    .user-card {
+        background-color: #111318;
+        border: 1px solid #1f232c;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
     .recovery-info {
         background-color: #16181d;
         border-left: 3px solid #6b7280;
         padding: 12px;
         border-radius: 4px;
         margin-top: 10px;
-    }
-
-    .profile-avatar {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 2px solid #374151;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -313,10 +322,13 @@ else:
     user_id = user_info.get("user_id", "#0000")
     avatar_b64 = user_info.get("avatar", "")
 
-    if avatar_b64:
-        st.sidebar.markdown(f'<img src="data:image/png;base64,{avatar_b64}" class="profile-avatar"><br>', unsafe_allow_html=True)
-    st.sidebar.markdown(f"### 👤 {current_user}")
-    st.sidebar.markdown(f"ID: `{user_id}` | Role: `{role.upper()}`")
+    st.sidebar.markdown(f"""
+    <div style="text-align: center; margin-bottom: 10px;">
+        {get_avatar_html(avatar_b64, size=75)}
+        <h3 style="margin-top: 8px; margin-bottom: 2px;">{current_user}</h3>
+        <small style="color: #9ca3af;">ID: <code>{user_id}</code> | Role: <code>{role.upper()}</code></small>
+    </div>
+    """, unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
     if st.sidebar.button("🏠 Dashboard", use_container_width=True):
@@ -373,6 +385,12 @@ else:
 
     elif st.session_state.current_page == "👥 Friends":
         st.markdown("### 👥 Friend Management")
+        
+        c_ref1, c_ref2 = st.columns([3, 1])
+        with c_ref2:
+            if st.button("🔄 Refresh List", use_container_width=True):
+                st.rerun()
+
         t_search, t_requests = st.tabs(["🔍 Search & Add", "📩 Pending Requests"])
 
         with t_search:
@@ -382,18 +400,34 @@ else:
                 for uname, udata in data["users"].items():
                     if uname != current_user and (s_query.strip().lower() == uname.lower() or s_query.strip().upper() == udata.get("user_id")):
                         found = True
-                        st.markdown(f"**Found:** `{uname}` ({udata.get('user_id')})")
-                        if uname in user_info.get("friends", []):
-                            st.info("Already in your friends list.")
-                        elif current_user in udata.get("friend_requests", []):
-                            st.info("Friend request already sent.")
-                        else:
-                            if st.button(f"➕ Send Request to {uname}", key=f"req_{uname}"):
-                                udata.setdefault("friend_requests", []).append(current_user)
-                                save_data(data)
-                                log_audit("FRIEND_REQUEST_SENT", f"'{current_user}' sent request to '{uname}'.")
-                                st.success(f"Friend request sent to {uname}!")
-                                st.rerun()
+                        u_av = udata.get("avatar", "")
+                        u_id_val = udata.get("user_id", "")
+
+                        col_card, col_action = st.columns([3, 1])
+                        with col_card:
+                            st.markdown(f"""
+                            <div class="user-card">
+                                <div>
+                                    {get_avatar_html(u_av, size=50)}
+                                    <strong style="font-size:1.1em; margin-left:10px;">{uname}</strong>
+                                    <span style="color:#9ca3af; font-size:0.9em; margin-left:8px;">({u_id_val})</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col_action:
+                            if uname in user_info.get("friends", []):
+                                st.info("Friends ✅")
+                            elif current_user in udata.get("friend_requests", []):
+                                st.info("Pending ⏳")
+                            else:
+                                if st.button(f"➕ Add Friend", key=f"req_{uname}", use_container_width=True):
+                                    udata.setdefault("friend_requests", []).append(current_user)
+                                    save_data(data)
+                                    log_audit("FRIEND_REQUEST_SENT", f"'{current_user}' sent request to '{uname}'.")
+                                    st.success(f"Request sent to {uname}!")
+                                    st.rerun()
+
                 if not found and s_query:
                     st.warning("No user found with that Username or ID.")
 
@@ -403,11 +437,23 @@ else:
                 st.info("No pending friend requests.")
             else:
                 for req_user in requests:
+                    req_udata = data["users"].get(req_user, {})
+                    req_av = req_udata.get("avatar", "")
+                    req_id = req_udata.get("user_id", "")
+
                     col_r1, col_r2, col_r3 = st.columns([3, 1, 1])
                     with col_r1:
-                        st.markdown(f"**{req_user}** ({data['users'][req_user].get('user_id')})")
+                        st.markdown(f"""
+                        <div class="user-card">
+                            <div>
+                                {get_avatar_html(req_av, size=40)}
+                                <strong style="margin-left:8px;">{req_user}</strong>
+                                <span style="color:#9ca3af; font-size:0.85em;">({req_id})</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
                     with col_r2:
-                        if st.button("ACCEPT ✅", key=f"acc_{req_user}"):
+                        if st.button("ACCEPT ✅", key=f"acc_{req_user}", use_container_width=True):
                             user_info.setdefault("friends", []).append(req_user)
                             data["users"][req_user].setdefault("friends", []).append(current_user)
                             user_info["friend_requests"].remove(req_user)
@@ -416,35 +462,35 @@ else:
                             st.success(f"Accepted {req_user}!")
                             st.rerun()
                     with col_r3:
-                        if st.button("DECLINE ❌", key=f"dec_{req_user}"):
+                        if st.button("DECLINE ❌", key=f"dec_{req_user}", use_container_width=True):
                             user_info["friend_requests"].remove(req_user)
                             save_data(data)
                             st.rerun()
 
     elif st.session_state.current_page == "👤 Profile":
-        st.markdown("### 👤 User Profile")
+        st.markdown("### 👤 User Profile Settings")
         col_p1, col_p2 = st.columns([1, 2])
         
         with col_p1:
-            if avatar_b64:
-                st.markdown(f'<img src="data:image/png;base64,{avatar_b64}" style="width:150px; height:150px; border-radius:50%; object-fit:cover; border:3px solid #374151;"><br><br>', unsafe_allow_html=True)
-            else:
-                st.info("No profile picture uploaded.")
+            st.markdown("##### Profile Picture")
+            st.markdown(get_avatar_html(avatar_b64, size=120), unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
 
-            up_avatar = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"])
+            up_avatar = st.file_uploader("Upload Circular Avatar", type=["png", "jpg", "jpeg"])
             if up_avatar:
                 img_bytes = up_avatar.read()
                 b64_img = base64.b64encode(img_bytes).decode('utf-8')
                 user_info["avatar"] = b64_img
                 save_data(data)
-                st.success("Avatar updated!")
+                st.success("Avatar updated successfully!")
                 st.rerun()
 
         with col_p2:
+            st.markdown("##### Account Information")
             st.markdown(f"**Username:** `{current_user}`")
             st.markdown(f"**User ID:** `{user_id}`")
             st.markdown(f"**Role:** `{role.upper()}`")
-            st.markdown(f"**Total Friends:** `{len(user_info.get('friends', []))}`")
+            st.markdown(f"**Friends:** `{len(user_info.get('friends', []))}`")
 
     elif st.session_state.current_page == "💬 Messages":
         my_friends = user_info.get("friends", [])
@@ -457,6 +503,7 @@ else:
             with col_contacts:
                 st.markdown("##### Friends")
                 for f_name in my_friends:
+                    f_avatar = data["users"][f_name].get("avatar", "")
                     is_sel = (st.session_state.selected_chat == f_name)
                     btn_txt = f"🟢 {f_name}" if is_sel else f"👤 {f_name}"
                     if st.button(btn_txt, key=f"user_sel_{f_name}", use_container_width=True):
@@ -469,9 +516,12 @@ else:
                     st.info("Select a friend from the left panel to display chat history.")
                 else:
                     target_id = data["users"][target_chat].get("user_id", "")
+                    target_av = data["users"][target_chat].get("avatar", "")
+                    
                     st.markdown(f"""
                     <div class="chat-header-bar">
-                        <strong>Chatting with: {target_chat} <small>({target_id})</small></strong>
+                        {get_avatar_html(target_av, size=35)}
+                        <strong style="margin-left:8px;">Chatting with: {target_chat} <small>({target_id})</small></strong>
                         <small style="float:right; color:#9ca3af;">AES Encrypted</small>
                     </div>
                     """, unsafe_allow_html=True)
@@ -667,3 +717,4 @@ else:
                 st.code("".join(f.readlines()[-20:]))
         else:
             st.info("No audit logs found.")
+```[cite: 6]
