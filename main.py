@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import json
 import os
 import hashlib
@@ -375,97 +374,7 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    chat_container = st.container(height=420)
-
-                    @st.fragment(run_every="2s")
-                    def render_live_chat():
-                        live_data = load_data()
-                        msgs_to_burn = []
-                        
-                        with chat_container:
-                            for m in live_data["messages"]:
-                                f_user, t_user = m.get("from"), m.get("to")
-                                if (f_user == current_user and t_user == target_chat) or (f_user == target_chat and t_user == current_user):
-                                    try:
-                                        dec_raw = cipher.decrypt(m['content'].encode()).decode()
-                                        txt_display = dec_raw
-                                        file_bytes, file_name, file_mime = None, None, None
-
-                                        if "[FILE:" in dec_raw:
-                                            parts = dec_raw.split("[FILE:")
-                                            txt_display = parts[0].strip()
-                                            meta_and_b64 = parts[1]
-                                            meta_str = meta_and_b64.split("]")[0]
-                                            b64_str = meta_and_b64.split("]")[1]
-                                            
-                                            file_name, file_mime = meta_str.split(":", 1)
-                                            file_bytes = base64.b64decode(b64_str)
-
-                                    except Exception:
-                                        txt_display = "[Decryption Error]"
-                                        file_bytes = None
-
-                                    burn_str = " 🔥" if m.get("burn") else ""
-                                    time_str = m['time'].split(" ")[1][:5]
-                                    is_mine = (f_user == current_user)
-
-                                    bubble_class = "bubble-sent" if is_mine else "bubble-received"
-                                    
-                                    if txt_display:
-                                        st.markdown(f"""
-                                        <div class="{bubble_class}">
-                                            {txt_display}{burn_str}
-                                            <span class="bubble-time">{time_str}</span>
-                                        </div>
-                                        """, unsafe_allow_html=True)
-
-                                    if file_bytes:
-                                        with st.expander(f"📁 Attachment: {file_name}", expanded=True):
-                                            if file_mime and "image" in file_mime:
-                                                st.image(file_bytes, caption=file_name, use_container_width=True)
-                                            elif file_mime and "text" in file_mime:
-                                                try:
-                                                    st.caption(file_bytes.decode('utf-8')[:200] + "...")
-                                                except Exception:
-                                                    pass
-
-                                            st.download_button(
-                                                label=f"⬇️ Download {file_name}",
-                                                data=file_bytes,
-                                                file_name=file_name,
-                                                mime=file_mime,
-                                                key=f"dl_{m['time']}_{f_user}"
-                                            )
-
-                                    if not is_mine and m.get("burn"):
-                                        msgs_to_burn.append(m)
-
-                            components.html("""
-                            <script>
-                                var containers = window.parent.document.querySelectorAll('div[data-testid="stElementContainer"]');
-                                containers.forEach(function(c) {
-                                    var parentBox = c.closest('div[data-id]');
-                                    if (parentBox) {
-                                        parentBox.scrollTop = parentBox.scrollHeight;
-                                    }
-                                });
-                                var chatBox = window.parent.document.querySelector('div[data-testid="stVerticalBlockBorderWrapper"]');
-                                if (chatBox) {
-                                    chatBox.scrollTop = chatBox.scrollHeight;
-                                }
-                            </script>
-                            """, height=0)
-
-                        if msgs_to_burn:
-                            for bm in msgs_to_burn:
-                                live_data["messages"].remove(bm)
-                                log_audit("MESSAGE_BURNED", f"Burned msg from '{bm['from']}' to '{bm['to']}'.")
-                            save_data(live_data)
-
-                    render_live_chat()
-
-                    st.markdown("<div style='clear:both;'></div><br>", unsafe_allow_html=True)
-
+                    # نموذج كتابة وإرسال الرسائل يظهر في الأعلى مباشرة
                     with st.form(key="send_form", clear_on_submit=True):
                         in_msg = st.text_input("Type a message...", key="in_msg_key", label_visibility="collapsed")
                         up_file = st.file_uploader("Attach File (Img, PDF, TXT)", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
@@ -503,6 +412,88 @@ else:
                                 save_data(fresh_data)
                                 log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}' (with attachment).")
                                 st.rerun()
+
+                    st.markdown("---")
+
+                    chat_container = st.container(height=400)
+
+                    # عرض الرسائل بترتيب عكسي (الأحدث فوق والأقدم تحت)
+                    @st.fragment(run_every="2s")
+                    def render_live_chat():
+                        live_data = load_data()
+                        msgs_to_burn = []
+                        
+                        # تجميع الرسائل الخاصة بهذا الشات وعكس ترتيبها
+                        filtered_msgs = [
+                            m for m in live_data["messages"]
+                            if (m.get("from") == current_user and m.get("to") == target_chat) or
+                               (m.get("from") == target_chat and m.get("to") == current_user)
+                        ]
+                        
+                        with chat_container:
+                            for m in reversed(filtered_msgs):
+                                f_user, t_user = m.get("from"), m.get("to")
+                                try:
+                                    dec_raw = cipher.decrypt(m['content'].encode()).decode()
+                                    txt_display = dec_raw
+                                    file_bytes, file_name, file_mime = None, None, None
+
+                                    if "[FILE:" in dec_raw:
+                                        parts = dec_raw.split("[FILE:")
+                                        txt_display = parts[0].strip()
+                                        meta_and_b64 = parts[1]
+                                        meta_str = meta_and_b64.split("]")[0]
+                                        b64_str = meta_and_b64.split("]")[1]
+                                        
+                                        file_name, file_mime = meta_str.split(":", 1)
+                                        file_bytes = base64.b64decode(b64_str)
+
+                                except Exception:
+                                    txt_display = "[Decryption Error]"
+                                    file_bytes = None
+
+                                burn_str = " 🔥" if m.get("burn") else ""
+                                time_str = m['time'].split(" ")[1][:5]
+                                is_mine = (f_user == current_user)
+
+                                bubble_class = "bubble-sent" if is_mine else "bubble-received"
+                                
+                                if txt_display:
+                                    st.markdown(f"""
+                                    <div class="{bubble_class}">
+                                        {txt_display}{burn_str}
+                                        <span class="bubble-time">{time_str}</span>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                                if file_bytes:
+                                    with st.expander(f"📁 Attachment: {file_name}", expanded=True):
+                                        if file_mime and "image" in file_mime:
+                                            st.image(file_bytes, caption=file_name, use_container_width=True)
+                                        elif file_mime and "text" in file_mime:
+                                            try:
+                                                st.caption(file_bytes.decode('utf-8')[:200] + "...")
+                                            except Exception:
+                                                pass
+
+                                        st.download_button(
+                                            label=f"⬇️ Download {file_name}",
+                                            data=file_bytes,
+                                            file_name=file_name,
+                                            mime=file_mime,
+                                            key=f"dl_{m['time']}_{f_user}"
+                                        )
+
+                                if not is_mine and m.get("burn"):
+                                    msgs_to_burn.append(m)
+
+                        if msgs_to_burn:
+                            for bm in msgs_to_burn:
+                                live_data["messages"].remove(bm)
+                                log_audit("MESSAGE_BURNED", f"Burned msg from '{bm['from']}' to '{bm['to']}'.")
+                            save_data(live_data)
+
+                    render_live_chat()
 
     elif st.session_state.current_page == "🚫 Blocklist":
         st.markdown("### 🚫 Blocklist Management")
@@ -564,3 +555,4 @@ else:
                 st.code("".join(f.readlines()[-20:]))
         else:
             st.info("No audit logs found.")
+```[cite: 6]
