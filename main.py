@@ -50,12 +50,13 @@ def generate_recovery_key():
 
 def load_data():
     if not os.path.exists(DATA_FILE):
-        return {"users": {}, "messages": []}
+        return {"users": {}, "messages": [], "pinned": {}}
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             data.setdefault("users", {})
             data.setdefault("messages", [])
+            data.setdefault("pinned", {})
             modified = False
             for username, udata in data["users"].items():
                 udata.setdefault("role", "admin" if len(data["users"]) == 1 else "user")
@@ -68,13 +69,16 @@ def load_data():
                 udata.setdefault("friend_requests", [])
                 udata.setdefault("nicknames", {})
                 udata.setdefault("avatar", "")
+                udata.setdefault("status_text", "Available")
+                udata.setdefault("status_icon", "🟢 Online")
+                udata.setdefault("bio", "Hey there! I am using Secure Chat.")
             
             if modified:
                 save_data(data)
             return data
     except Exception as e:
         st.error(f"Data read error: {e}")
-        return {"users": {}, "messages": []}
+        return {"users": {}, "messages": [], "pinned": {}}
 
 def save_data(data):
     try:
@@ -97,11 +101,18 @@ def is_strong_password(password):
         return False, "Password must contain both letters and digits."
     return True, ""
 
-def get_avatar_html(avatar_b64, size=45):
+def get_avatar_html(avatar_b64, size=45, status_icon="🟢"):
     if avatar_b64:
-        return f'<img src="data:image/png;base64,{avatar_b64}" style="width:{size}px; height:{size}px; border-radius:50%; object-fit:cover; border:2px solid #374151; display:inline-block; vertical-align:middle;">'
+        img_html = f'<img src="data:image/png;base64,{avatar_b64}" style="width:{size}px; height:{size}px; border-radius:50%; object-fit:cover; border:2px solid #3b82f6;">'
     else:
-        return f'<div style="width:{size}px; height:{size}px; border-radius:50%; background-color:#282c37; color:#d1d5db; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #374151; vertical-align:middle;">👤</div>'
+        img_html = f'<div style="width:{size}px; height:{size}px; border-radius:50%; background:linear-gradient(135deg, #1e293b, #0f172a); color:#f8fafc; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #3b82f6; font-size:{int(size/2.2)}px;">👤</div>'
+    
+    return f'''
+    <div style="position:relative; display:inline-block; vertical-align:middle;">
+        {img_html}
+        <span style="position:absolute; bottom:0; right:0; font-size:{int(size/3.5)}px; background:#0f172a; border-radius:50%; padding:1px;">{status_icon.split()[0]}</span>
+    </div>
+    '''
 
 def navigate_to(page_name, target_user=None):
     st.session_state.current_page = page_name
@@ -109,73 +120,75 @@ def navigate_to(page_name, target_user=None):
     if target_user:
         st.session_state.selected_chat = target_user
 
-st.set_page_config(page_title="Secure Chat App", page_icon="🔒", layout="wide")
+st.set_page_config(page_title="Ultra Secure Chat v2.0", page_icon="⚡", layout="wide")
 
 st.markdown("""
 <style>
-    /* Dark Slate & Matte Black Professional Theme */
+    /* Dark Slate & Cyberpunk Minimalist Theme */
     .stApp {
-        background-color: #090a0f;
-        color: #d1d5db;
+        background-color: #0b0f19;
+        color: #e2e8f0;
     }
     
     section[data-testid="stSidebar"] {
-        background-color: #111318 !important;
-        border-right: 1px solid #1f232c !important;
+        background-color: #111827 !important;
+        border-right: 1px solid #1e293b !important;
     }
 
-    /* Inputs Styling */
+    /* Input & Interactive Elements */
     .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
-        background-color: #16181d !important;
-        color: #f3f4f6 !important;
-        border: 1px solid #282c37 !important;
-        border-radius: 6px !important;
+        background-color: #1e293b !important;
+        color: #f8fafc !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
     }
     
     .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus {
-        border-color: #4b5563 !important;
-        box-shadow: none !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 8px rgba(59, 130, 246, 0.3) !important;
     }
 
-    /* Buttons Styling */
+    /* Buttons */
     .stButton>button, .stDownloadButton>button {
-        background-color: #1f232c !important;
-        color: #e5e7eb !important;
-        border: 1px solid #374151 !important;
-        border-radius: 6px !important;
-        font-weight: 500 !important;
-        transition: all 0.2s ease !important;
+        background: linear-gradient(135deg, #1e293b, #0f172a) !important;
+        color: #f1f5f9 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.25s ease !important;
     }
 
     .stButton>button:hover, .stDownloadButton>button:hover {
-        background-color: #374151 !important;
-        border-color: #4b5563 !important;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+        border-color: #60a5fa !important;
         color: #ffffff !important;
+        transform: translateY(-1px);
     }
 
-    /* Clean Chat Component */
+    /* Chat Styling */
     .chat-header-bar {
-        background-color: #111318;
-        padding: 12px 18px;
-        border-radius: 8px;
-        border: 1px solid #1f232c;
+        background: linear-gradient(90deg, #111827, #1e293b);
+        padding: 14px 20px;
+        border-radius: 12px;
+        border: 1px solid #1e293b;
         margin-bottom: 15px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
 
-    /* Modern Chat Layout */
     .chat-message-container {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 12px;
         padding: 10px;
     }
 
     .message-row {
         display: flex;
         width: 100%;
+        margin-bottom: 4px;
     }
 
     .message-row.sent {
@@ -187,91 +200,101 @@ st.markdown("""
     }
 
     .message-bubble {
-        padding: 10px 14px;
-        max-width: 75%;
+        padding: 12px 16px;
+        max-width: 72%;
         word-wrap: break-word;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        position: relative;
     }
 
     .message-bubble.sent {
-        background-color: #2b5278; /* Subtle blue for sent messages */
-        color: #f3f4f6;
-        border-radius: 12px 12px 2px 12px;
-        border: 1px solid #3a6894;
+        background: linear-gradient(135deg, #1d4ed8, #1e40af);
+        color: #f8fafc;
+        border-radius: 16px 16px 2px 16px;
+        border: 1px solid #3b82f6;
     }
 
     .message-bubble.received {
-        background-color: #1e2229;
-        color: #d1d5db;
-        border-radius: 12px 12px 12px 2px;
-        border: 1px solid #2d333b;
+        background: #1e293b;
+        color: #e2e8f0;
+        border-radius: 16px 16px 16px 2px;
+        border: 1px solid #334155;
+    }
+
+    .reply-quote {
+        background: rgba(0, 0, 0, 0.25);
+        border-left: 3px solid #60a5fa;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.82em;
+        margin-bottom: 6px;
+        color: #cbd5e1;
     }
 
     .message-time {
         font-size: 0.7em;
-        color: #8b949e;
+        color: #94a3b8;
         display: block;
         text-align: right;
-        margin-top: 4px;
-    }
-    
-    .message-burn-icon {
-        color: #ff5555;
-        font-size: 0.9em;
-        margin-left: 5px;
+        margin-top: 5px;
     }
 
-    /* Image Attachment Styling */
-    .chat-image-thumbnail {
-        max-width: 100%;
-        max-height: 200px;
+    .reactions-bar {
+        display: flex;
+        gap: 4px;
+        margin-top: 6px;
+    }
+
+    .reaction-badge {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 2px 6px;
+        font-size: 0.75em;
+    }
+
+    .pinned-banner {
+        background: #1e1b4b;
+        border: 1px solid #4338ca;
+        padding: 8px 14px;
         border-radius: 8px;
-        margin-top: 5px;
-        cursor: pointer;
-        border: 1px solid #374151;
-        transition: transform 0.2s;
-    }
-    
-    .chat-image-thumbnail:hover {
-        transform: scale(1.02);
-    }
-
-    /* File Attachment Styling */
-    .file-attachment-box {
-        background-color: rgba(255, 255, 255, 0.05);
-        border: 1px dashed #4b5563;
-        border-radius: 6px;
-        padding: 8px;
-        margin-top: 5px;
+        color: #c7d2fe;
+        font-size: 0.88em;
+        margin-bottom: 12px;
         display: flex;
         align-items: center;
-        gap: 10px;
-    }
-
-    .card-box {
-        background-color: #111318;
-        border: 1px solid #1f232c;
-        border-radius: 8px;
-        padding: 16px;
-        text-align: center;
+        gap: 8px;
     }
 
     .user-card {
-        background-color: #111318;
-        border: 1px solid #1f232c;
-        border-radius: 8px;
+        background: #111827;
+        border: 1px solid #1e293b;
+        border-radius: 10px;
         padding: 12px 16px;
         margin-bottom: 10px;
         display: flex;
         align-items: center;
         justify-content: space-between;
+        transition: border-color 0.2s;
+    }
+
+    .user-card:hover {
+        border-color: #3b82f6;
+    }
+
+    .card-box {
+        background: #111827;
+        border: 1px solid #1e293b;
+        border-radius: 10px;
+        padding: 18px;
+        text-align: center;
     }
 
     .recovery-info {
-        background-color: #16181d;
-        border-left: 3px solid #6b7280;
-        padding: 12px;
-        border-radius: 4px;
+        background: #0f172a;
+        border-left: 4px solid #3b82f6;
+        padding: 14px;
+        border-radius: 6px;
         margin-top: 10px;
     }
 </style>
@@ -286,10 +309,14 @@ if "current_page" not in st.session_state:
 if "selected_chat" not in st.session_state:
     st.session_state.selected_chat = None
 
+if "reply_to_msg" not in st.session_state:
+    st.session_state.reply_to_msg = None
+
 data = load_data()
 
 if not st.session_state.current_user:
-    st.markdown("<h2 style='text-align: center; color: #e5e7eb; margin-bottom: 30px;'>🔒 SECURE CHAT APPLICATION</h2>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #60a5fa; margin-bottom: 10px; font-weight:800;'>⚡ ULTRA SECURE CHAT</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #94a3b8; margin-bottom: 35px;'>End-to-End Encrypted Private Communications Platform</p>", unsafe_allow_html=True)
     col_main = st.columns([1, 2, 1])[1]
     
     with col_main:
@@ -300,7 +327,7 @@ if not st.session_state.current_user:
             u_in = st.text_input("Username", key="l_u")
             p_in = st.text_input("Password", type="password", key="l_p")
             
-            if st.button("LOGIN", use_container_width=True):
+            if st.button("LOGIN 🚀", use_container_width=True):
                 user = data["users"].get(u_in)
                 if user and user["password"] == hash_data(p_in):
                     st.session_state.current_user = u_in
@@ -319,7 +346,7 @@ if not st.session_state.current_user:
             r_p = st.text_input("Password (8+ chars, letters & digits)", type="password", key="r_p")
             r_c = st.text_input("Confirm Password", type="password", key="r_c")
 
-            if st.button("CREATE ACCOUNT", use_container_width=True):
+            if st.button("CREATE ACCOUNT ✨", use_container_width=True):
                 v_u, m_u = is_valid_username(r_u)
                 v_p, m_p = is_strong_password(r_p)
 
@@ -345,7 +372,10 @@ if not st.session_state.current_user:
                         "friends": [],
                         "friend_requests": [],
                         "nicknames": {},
-                        "avatar": ""
+                        "avatar": "",
+                        "status_text": "Available",
+                        "status_icon": "🟢 Online",
+                        "bio": "Hey there! I am using Secure Chat."
                     }
                     save_data(data)
                     log_audit("REGISTER_SUCCESS", f"User '{r_u}' registered.")
@@ -353,7 +383,7 @@ if not st.session_state.current_user:
                     st.success("Account created successfully!")
                     st.markdown(f"""
                     <div class="recovery-info">
-                        <strong>YOUR ID:</strong> <code>{u_id}</code><br>
+                        <strong>YOUR PERMANENT ID:</strong> <code>{u_id}</code><br>
                         <strong>SAVE RECOVERY KEY:</strong> <code>{rec_k}</code>
                     </div>
                     """, unsafe_allow_html=True)
@@ -365,7 +395,7 @@ if not st.session_state.current_user:
             f_p = st.text_input("New Password", type="password", key="f_p")
             f_c = st.text_input("Confirm New Password", type="password", key="f_c")
 
-            if st.button("RESET PASSWORD", use_container_width=True):
+            if st.button("RESET PASSWORD 🔐", use_container_width=True):
                 user_rec = data["users"].get(f_u)
                 if not user_rec or hash_data(f_k) != user_rec.get("recovery_key"):
                     st.error("Invalid username or recovery key.")
@@ -387,17 +417,23 @@ else:
     role = user_info.get("role", "user")
     user_id = user_info.get("user_id", "#0000")
     avatar_b64 = user_info.get("avatar", "")
+    status_icon = user_info.get("status_icon", "🟢 Online")
+    status_text = user_info.get("status_text", "Available")
+    user_bio = user_info.get("bio", "")
     my_nicknames = user_info.get("nicknames", {})
 
     st.sidebar.markdown(f"""
-    <div style="text-align: center; margin-bottom: 5px;">
-        {get_avatar_html(avatar_b64, size=75)}
-        <h3 style="margin-top: 8px; margin-bottom: 2px;">{current_user}</h3>
-        <small style="color: #9ca3af;">Role: <code>{role.upper()}</code></small>
+    <div style="text-align: center; padding: 10px 0;">
+        {get_avatar_html(avatar_b64, size=80, status_icon=status_icon)}
+        <h3 style="margin-top: 10px; margin-bottom: 2px; color:#f8fafc;">{current_user}</h3>
+        <p style="color: #94a3b8; font-size: 0.82em; margin-bottom: 4px;">"{status_text}"</p>
+        <span style="background:#1e293b; color:#60a5fa; padding:2px 8px; border-radius:12px; font-size:0.75em; font-weight:bold;">
+            {role.upper()}
+        </span>
     </div>
     """, unsafe_allow_html=True)
     
-    st.sidebar.markdown("<small style='color:#9ca3af;'>Your ID (Click to copy):</small>", unsafe_allow_html=True)
+    st.sidebar.markdown("<small style='color:#94a3b8;'>Your Permanent ID:</small>", unsafe_allow_html=True)
     st.sidebar.code(user_id, language=None)
     st.sidebar.markdown("---")
 
@@ -427,16 +463,16 @@ else:
         with c1:
             st.markdown(f"""
             <div class="card-box">
-                <h3 style="color:#e5e7eb; margin:0;">{len(user_info.get('friends', []))}</h3>
-                <small style="color:#9ca3af;">Your Friends</small>
+                <h2 style="color:#60a5fa; margin:0;">{len(user_info.get('friends', []))}</h2>
+                <small style="color:#94a3b8;">Active Friends</small>
             </div>
             """, unsafe_allow_html=True)
 
         with c2:
             st.markdown(f"""
             <div class="card-box">
-                <h3 style="color:#e5e7eb; margin:0;">{len(user_info.get('friend_requests', []))}</h3>
-                <small style="color:#9ca3af;">Pending Requests</small>
+                <h2 style="color:#f59e0b; margin:0;">{len(user_info.get('friend_requests', []))}</h2>
+                <small style="color:#94a3b8;">Pending Requests</small>
             </div>
             """, unsafe_allow_html=True)
 
@@ -444,23 +480,23 @@ else:
             my_count = sum(1 for m in data['messages'] if m.get('to') == current_user or m.get('from') == current_user)
             st.markdown(f"""
             <div class="card-box">
-                <h3 style="color:#e5e7eb; margin:0;">{my_count}</h3>
-                <small style="color:#9ca3af;">Total Transmissions</small>
+                <h2 style="color:#10b981; margin:0;">{my_count}</h2>
+                <small style="color:#94a3b8;">Encrypted Transmissions</small>
             </div>
             """, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.button("💬 Open Messages", use_container_width=True, on_click=navigate_to, args=("💬 Messages",))
+        st.button("💬 Jump To Private Messages", use_container_width=True, on_click=navigate_to, args=("💬 Messages",))
 
     elif st.session_state.current_page == "👥 Friends":
         st.markdown("### 👥 Friend Management")
         
         c_ref1, c_ref2 = st.columns([3, 1])
         with c_ref2:
-            if st.button("🔄 Refresh List", use_container_width=True):
+            if st.button("🔄 Refresh Data", use_container_width=True):
                 st.rerun()
 
-        t_search, t_my_friends, t_requests = st.tabs(["🔍 Search & Add", "👥 My Friends", "📩 Pending Requests"])
+        t_search, t_my_friends, t_requests = st.tabs(["🔍 Search & Add", "👥 My Friends", "📩 Requests"])
 
         with t_search:
             s_query = st.text_input("Search user by Username or ID (e.g. #A123)", key="s_query_key")
@@ -472,15 +508,20 @@ else:
                         found = True
                         u_av = udata.get("avatar", "")
                         u_id_val = udata.get("user_id", "")
+                        u_st_icon = udata.get("status_icon", "🟢")
+                        u_bio = udata.get("bio", "")
 
                         col_card, col_action = st.columns([3, 1])
                         with col_card:
                             st.markdown(f"""
                             <div class="user-card">
-                                <div>
-                                    {get_avatar_html(u_av, size=50)}
-                                    <strong style="font-size:1.1em; margin-left:10px;">{uname}</strong>
-                                    <span style="color:#9ca3af; font-size:0.9em; margin-left:8px;">({u_id_val})</span>
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    {get_avatar_html(u_av, size=50, status_icon=u_st_icon)}
+                                    <div>
+                                        <strong style="font-size:1.1em; color:#f8fafc;">{uname}</strong>
+                                        <span style="color:#60a5fa; font-size:0.85em; margin-left:6px;">({u_id_val})</span>
+                                        <p style="color:#94a3b8; font-size:0.8em; margin:2px 0 0 0;">{u_bio}</p>
+                                    </div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
@@ -491,7 +532,7 @@ else:
                             elif current_user in udata.get("friend_requests", []):
                                 st.info("Pending ⏳")
                             else:
-                                if st.button(f"➕ Add Friend", key=f"req_{uname}", use_container_width=True):
+                                if st.button(f"➕ Send Request", key=f"req_{uname}", use_container_width=True):
                                     fresh_data = load_data()
                                     fresh_data["users"][uname].setdefault("friend_requests", [])
                                     if current_user not in fresh_data["users"][uname]["friend_requests"]:
@@ -513,15 +554,20 @@ else:
                     f_udata = data["users"].get(f_item, {})
                     f_av = f_udata.get("avatar", "")
                     f_id = f_udata.get("user_id", "")
+                    f_st_icon = f_udata.get("status_icon", "🟢")
+                    f_st_txt = f_udata.get("status_text", "")
                     display_nick = my_nicknames.get(f_item, "")
                     label_str = f"{display_nick} ({f_item})" if display_nick else f_item
 
                     st.markdown(f"""
                     <div class="user-card">
-                        <div>
-                            {get_avatar_html(f_av, size=45)}
-                            <strong style="font-size:1.1em; margin-left:10px;">{label_str}</strong>
-                            <span style="color:#9ca3af; font-size:0.85em; margin-left:8px;">({f_id})</span>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            {get_avatar_html(f_av, size=45, status_icon=f_st_icon)}
+                            <div>
+                                <strong style="font-size:1.05em; color:#f8fafc;">{label_str}</strong>
+                                <span style="color:#94a3b8; font-size:0.8em; margin-left:6px;">({f_id})</span>
+                                <small style="display:block; color:#60a5fa; font-size:0.75em;">{f_st_txt}</small>
+                            </div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -533,7 +579,7 @@ else:
 
                     with c_act2:
                         with st.popover("✏️ Nickname", use_container_width=True):
-                            new_nick = st.text_input(f"Nickname for {f_item}", value=display_nick, key=f"nick_input_{f_item}")
+                            new_nick = st.text_input(f"Set Nickname for {f_item}", value=display_nick, key=f"nick_input_{f_item}")
                             if st.button("Save", key=f"save_nick_{f_item}"):
                                 fresh_data = load_data()
                                 fresh_data["users"][current_user].setdefault("nicknames", {})[f_item] = new_nick.strip()
@@ -565,7 +611,7 @@ else:
                             log_audit("USER_BLOCKED", f"'{current_user}' blocked '{f_item}'.")
                             st.rerun()
 
-                    st.markdown("<hr style='border:0.5px solid #1f232c; margin: 10px 0;'>", unsafe_allow_html=True)
+                    st.markdown("<hr style='border:0.5px solid #1e293b; margin: 10px 0;'>", unsafe_allow_html=True)
 
         with t_requests:
             fresh_user_info = data["users"].get(current_user, {})
@@ -582,10 +628,12 @@ else:
                     with col_r1:
                         st.markdown(f"""
                         <div class="user-card">
-                            <div>
+                            <div style="display:flex; align-items:center; gap:10px;">
                                 {get_avatar_html(req_av, size=40)}
-                                <strong style="margin-left:8px;">{req_user}</strong>
-                                <span style="color:#9ca3af; font-size:0.85em;">({req_id})</span>
+                                <div>
+                                    <strong style="color:#f8fafc;">{req_user}</strong>
+                                    <span style="color:#94a3b8; font-size:0.8em;">({req_id})</span>
+                                </div>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -609,29 +657,36 @@ else:
                             st.rerun()
 
     elif st.session_state.current_page == "👤 Profile":
-        st.markdown("### 👤 User Profile Settings")
+        st.markdown("### 👤 User Profile Customization")
         col_p1, col_p2 = st.columns([1, 2])
         
         with col_p1:
-            st.markdown("##### Profile Picture")
-            st.markdown(get_avatar_html(avatar_b64, size=120), unsafe_allow_html=True)
+            st.markdown("##### Profile Avatar")
+            st.markdown(get_avatar_html(avatar_b64, size=130, status_icon=status_icon), unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
 
-            up_avatar = st.file_uploader("Upload Circular Avatar", type=["png", "jpg", "jpeg"])
+            up_avatar = st.file_uploader("Upload Profile Picture", type=["png", "jpg", "jpeg"])
             if up_avatar:
                 img_bytes = up_avatar.read()
                 b64_img = base64.b64encode(img_bytes).decode('utf-8')
                 user_info["avatar"] = b64_img
                 save_data(data)
-                st.success("Avatar updated successfully!")
+                st.success("Avatar updated!")
                 st.rerun()
 
         with col_p2:
-            st.markdown("##### Account Information")
-            st.markdown(f"**Username:** `{current_user}`")
-            st.markdown(f"**User ID:** `{user_id}`")
-            st.markdown(f"**Role:** `{role.upper()}`")
-            st.markdown(f"**Friends:** `{len(user_info.get('friends', []))}`")
+            st.markdown("##### Custom Status & Bio")
+            new_st_icon = st.selectbox("Status Indicator", ["🟢 Online", "🌙 Away", "⛔ Do Not Disturb", "🎮 Gaming", "💻 Coding"], index=["🟢 Online", "🌙 Away", "⛔ Do Not Disturb", "🎮 Gaming", "💻 Coding"].index(status_icon) if status_icon in ["🟢 Online", "🌙 Away", "⛔ Do Not Disturb", "🎮 Gaming", "💻 Coding"] else 0)
+            new_st_txt = st.text_input("Custom Status Message", value=status_text)
+            new_bio = st.text_area("About Me (Bio)", value=user_bio)
+
+            if st.button("SAVE PROFILE CHANGES 💾", use_container_width=True):
+                user_info["status_icon"] = new_st_icon
+                user_info["status_text"] = new_st_txt.strip()
+                user_info["bio"] = new_bio.strip()
+                save_data(data)
+                st.success("Profile details saved successfully!")
+                st.rerun()
 
     elif st.session_state.current_page == "💬 Messages":
         my_friends = user_info.get("friends", [])
@@ -642,16 +697,19 @@ else:
             col_contacts, col_chat = st.columns([1, 2.5])
 
             with col_contacts:
-                st.markdown("##### 👥 Friends List")
+                st.markdown("##### 💬 Chats")
                 for f_name in my_friends:
-                    f_avatar = data["users"][f_name].get("avatar", "")
+                    f_udata = data["users"].get(f_name, {})
+                    f_avatar = f_udata.get("avatar", "")
+                    f_st = f_udata.get("status_icon", "🟢")
                     f_nick = my_nicknames.get(f_name, f_name)
                     is_sel = (st.session_state.selected_chat == f_name)
                     
-                    bg_color = "#1e293b" if is_sel else "transparent"
-                    border_color = "#3b82f6" if is_sel else "#1f232c"
-                    
-                    if st.button(f_nick, key=f"user_sel_{f_name}", use_container_width=True):
+                    btn_label = f"{f_st.split()[0]} {f_nick}"
+                    if is_sel:
+                        btn_label = f"🔹 {btn_label}"
+
+                    if st.button(btn_label, key=f"user_sel_{f_name}", use_container_width=True):
                         st.session_state.selected_chat = f_name
                         st.rerun()
 
@@ -660,26 +718,41 @@ else:
                 if not target_chat or target_chat not in my_friends:
                     st.info("👈 Select a friend from the left panel to start chatting.")
                 else:
-                    target_id = data["users"][target_chat].get("user_id", "")
-                    target_av = data["users"][target_chat].get("avatar", "")
+                    target_udata = data["users"].get(target_chat, {})
+                    target_id = target_udata.get("user_id", "")
+                    target_av = target_udata.get("avatar", "")
+                    target_st_icon = target_udata.get("status_icon", "🟢")
+                    target_st_txt = target_udata.get("status_text", "Available")
                     target_disp = my_nicknames.get(target_chat, target_chat)
                     
+                    # Header
                     st.markdown(f"""
                     <div class="chat-header-bar">
-                        <div style="display: flex; align-items: center;">
-                            {get_avatar_html(target_av, size=40)}
-                            <div style="margin-left: 12px;">
-                                <strong style="font-size: 1.1em;">{target_disp}</strong>
-                                <span style="color: #9ca3af; font-size: 0.85em; display: block;">{target_id}</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            {get_avatar_html(target_av, size=42, status_icon=target_st_icon)}
+                            <div>
+                                <strong style="font-size: 1.15em; color:#f8fafc;">{target_disp}</strong>
+                                <span style="color: #60a5fa; font-size: 0.85em; margin-left: 6px;">({target_chat} {target_id})</span>
+                                <small style="display:block; color:#94a3b8; font-size: 0.78em;">{target_st_txt}</small>
                             </div>
                         </div>
-                        <span style="background-color: #064e3b; color: #34d399; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; font-weight: bold;">
-                            🔒 E2E Encrypted
+                        <span style="background-color: #064e3b; color: #34d399; padding: 4px 10px; border-radius: 12px; font-size: 0.75em; font-weight: bold;">
+                            🔒 AES-256
                         </span>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    chat_container = st.container(height=450)
+                    # Pinned Message Banner
+                    pair_key = f"{min(current_user, target_chat)}_{max(current_user, target_chat)}"
+                    pinned_msg = data.get("pinned", {}).get(pair_key)
+                    if pinned_msg:
+                        st.markdown(f"""
+                        <div class="pinned-banner">
+                            📌 <strong>Pinned Message:</strong> {pinned_msg}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    chat_container = st.container(height=420)
 
                     @st.fragment(run_every="2s")
                     def render_live_chat():
@@ -694,8 +767,9 @@ else:
                         
                         with chat_container:
                             st.markdown('<div class="chat-message-container">', unsafe_allow_html=True)
-                            for m in filtered_msgs:
+                            for idx, m in enumerate(filtered_msgs):
                                 f_user = m.get("from")
+                                msg_id = m.get("id", f"msg_{idx}")
                                 try:
                                     dec_raw = cipher.decrypt(m['content'].encode()).decode()
                                     txt_display = dec_raw
@@ -712,52 +786,71 @@ else:
                                         file_bytes = base64.b64decode(b64_str)
 
                                 except Exception:
-                                    txt_display = "⚠️ <i>[Message corrupted or key mismatch]</i>"
+                                    txt_display = "⚠️ <i>[Message decryption failed]</i>"
                                     file_bytes = None
 
                                 is_mine = (f_user == current_user)
                                 alignment = "sent" if is_mine else "received"
-                                burn_html = '<span class="message-burn-icon" title="Self-destructing message">🔥</span>' if m.get("burn") else ""
+                                burn_html = '<span class="message-burn-icon" title="Burn on read">🔥</span>' if m.get("burn") else ""
                                 time_str = m['time'].split(" ")[1][:5]
-                                
-                                # Render text message if present
-                                if txt_display or not file_bytes:
-                                    st.markdown(f"""
-                                    <div class="message-row {alignment}">
-                                        <div class="message-bubble {alignment}">
-                                            <div>{txt_display}{burn_html}</div>
-                                            <span class="message-time">{time_str}</span>
-                                        </div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                reply_text = m.get("reply")
 
-                                # Render file attachment
-                                if file_bytes:
-                                    st.markdown(f'<div class="message-row {alignment}"><div class="message-bubble {alignment}">', unsafe_allow_html=True)
+                                st.markdown(f'<div class="message-row {alignment}">', unsafe_allow_html=True)
+                                
+                                with st.container():
+                                    st.markdown(f'<div class="message-bubble {alignment}">', unsafe_allow_html=True)
                                     
-                                    if file_mime and "image" in file_mime:
-                                        # Use native st.image for click-to-expand functionality
-                                        st.image(file_bytes, caption=file_name, use_container_width=True)
-                                    else:
-                                        st.markdown(f"""
-                                        <div class="file-attachment-box">
-                                            <span style="font-size: 1.5em;">📄</span>
-                                            <div style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                                <strong>{file_name}</strong>
-                                            </div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
-                                    
-                                    st.download_button(
-                                        label="⬇️ Download",
-                                        data=file_bytes,
-                                        file_name=file_name,
-                                        mime=file_mime,
-                                        key=f"dl_{m['time']}_{f_user}_{secrets.token_hex(4)}",
-                                        use_container_width=True
-                                    )
-                                    
-                                    st.markdown(f'<span class="message-time">{time_str}</span></div></div>', unsafe_allow_html=True)
+                                    if reply_text:
+                                        st.markdown(f'<div class="reply-quote">↩️ {reply_text}</div>', unsafe_allow_html=True)
+
+                                    if txt_display:
+                                        st.markdown(f'<div>{txt_display}{burn_html}</div>', unsafe_allow_html=True)
+
+                                    if file_bytes:
+                                        if file_mime and "image" in file_mime:
+                                            st.image(file_bytes, caption=file_name, use_container_width=True)
+                                        else:
+                                            st.markdown(f"📄 **{file_name}**")
+
+                                        st.download_button(
+                                            label="⬇️ Download Attachment",
+                                            data=file_bytes,
+                                            file_name=file_name,
+                                            mime=file_mime,
+                                            key=f"dl_{m['time']}_{idx}",
+                                            use_container_width=True
+                                        )
+
+                                    # Reactions display
+                                    reactions = m.get("reactions", {})
+                                    if reactions:
+                                        r_html = "".join([f'<span class="reaction-badge">{emoji} {count}</span>' for emoji, count in reactions.items()])
+                                        st.markdown(f'<div class="reactions-bar">{r_html}</div>', unsafe_allow_html=True)
+
+                                    st.markdown(f'<span class="message-time">{time_str}</span>', unsafe_allow_html=True)
+                                    st.markdown('</div>', unsafe_allow_html=True)
+
+                                    # Quick Actions Popover (Reply, React, Pin)
+                                    with st.popover("⚡ Actions"):
+                                        st.caption("Quick Reaction")
+                                        rc1, rc2, rc3, rc4 = st.columns(4)
+                                        for em in ["❤️", "👍", "🔥", "😂"]:
+                                            if rc1.button(em, key=f"react_{idx}_{em}"):
+                                                m.setdefault("reactions", {})
+                                                m["reactions"][em] = m["reactions"].get(em, 0) + 1
+                                                save_data(live_data)
+                                                st.rerun()
+
+                                        if st.button("↩️ Reply", key=f"rpl_btn_{idx}"):
+                                            st.session_state.reply_to_msg = txt_display[:30] if txt_display else "File Attachment"
+                                            st.rerun()
+
+                                        if st.button("📌 Pin Message", key=f"pin_btn_{idx}"):
+                                            live_data.setdefault("pinned", {})[pair_key] = txt_display[:50]
+                                            save_data(live_data)
+                                            st.rerun()
+
+                                st.markdown('</div>', unsafe_allow_html=True)
 
                                 if not is_mine and m.get("burn"):
                                     msgs_to_burn.append(m)
@@ -786,15 +879,18 @@ else:
 
                     st.markdown("<div style='clear:both; margin-top:10px;'></div>", unsafe_allow_html=True)
 
+                    if st.session_state.reply_to_msg:
+                        st.info(f"↩️ Replying to: *{st.session_state.reply_to_msg}*")
+
                     with st.form(key="send_form", clear_on_submit=True, border=True):
-                        in_msg = st.text_area("Message", placeholder="Type a message...", key="in_msg_key", label_visibility="collapsed", height=68)
+                        in_msg = st.text_area("Message", placeholder="Type a secure message...", key="in_msg_key", label_visibility="collapsed", height=68)
                         
                         c_file, c_chk, c_btn = st.columns([2, 1, 1])
                         with c_file:
                             up_file = st.file_uploader("Attach", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
                         with c_chk:
                             st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-                            chk_burn = st.checkbox("🔥 Burn on read")
+                            chk_burn = st.checkbox("🔥 Burn")
                         with c_btn:
                             st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
                             btn_sub = st.form_submit_button("SEND 🚀", use_container_width=True)
@@ -816,21 +912,26 @@ else:
                                     final_payload = f"{final_payload}\n{file_meta}" if final_payload else file_meta
 
                                 enc_content = cipher.encrypt(final_payload.encode()).decode()
-                                fresh_data["messages"].append({
+                                new_msg_obj = {
+                                    "id": secrets.token_hex(6),
                                     "from": current_user,
                                     "to": target_chat,
                                     "content": enc_content,
                                     "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                    "burn": chk_burn
-                                })
+                                    "burn": chk_burn,
+                                    "reply": st.session_state.reply_to_msg,
+                                    "reactions": {}
+                                }
+                                fresh_data["messages"].append(new_msg_obj)
                                 save_data(fresh_data)
                                 log_audit("MESSAGE_SENT", f"From '{current_user}' to '{target_chat}'.")
+                                st.session_state.reply_to_msg = None
                                 st.rerun()
 
     elif st.session_state.current_page == "🚫 Blocklist":
         st.markdown("### 🚫 Blocklist Management")
         block_list = data["users"][current_user].setdefault("blocked", [])
-        st.write(f"Currently Blocked: `{', '.join(block_list) if block_list else 'None'}`")
+        st.write(f"Currently Blocked Users: `{', '.join(block_list) if block_list else 'None'}`")
         
         targets = [u for u in data["users"] if u != current_user]
         if targets:
@@ -838,7 +939,7 @@ else:
             b_col1, b_col2 = st.columns(2)
             
             with b_col1:
-                if st.button("BLOCK USER", use_container_width=True) and t_user not in block_list:
+                if st.button("BLOCK USER 🚫", use_container_width=True) and t_user not in block_list:
                     block_list.append(t_user)
                     save_data(data)
                     log_audit("USER_BLOCKED", f"'{current_user}' blocked '{t_user}'.")
@@ -846,7 +947,7 @@ else:
                     st.rerun()
             
             with b_col2:
-                if st.button("UNBLOCK USER", use_container_width=True) and t_user in block_list:
+                if st.button("UNBLOCK USER ✅", use_container_width=True) and t_user in block_list:
                     block_list.remove(t_user)
                     save_data(data)
                     log_audit("USER_UNBLOCKED", f"'{current_user}' unblocked '{t_user}'.")
@@ -854,14 +955,14 @@ else:
                     st.rerun()
 
     elif st.session_state.current_page == "⚙️ Settings":
-        st.markdown("### ⚙️ Account Settings")
-        st.write(f"User: **{current_user}**")
+        st.markdown("### ⚙️ Account Security Settings")
+        st.write(f"Logged in as: **{current_user}**")
         
         curr_pwd = st.text_input("Current Password", type="password")
         new_pwd = st.text_input("New Password", type="password")
         conf_pwd = st.text_input("Confirm Password", type="password")
 
-        if st.button("UPDATE PASSWORD", use_container_width=True):
+        if st.button("UPDATE PASSWORD 🔑", use_container_width=True):
             if hash_data(curr_pwd) != data["users"][current_user]["password"]:
                 st.error("Current password incorrect.")
             else:
@@ -878,10 +979,10 @@ else:
 
     elif st.session_state.current_page == "📊 Admin Panel":
         st.markdown("### 📊 Admin Panel")
-        st.markdown("##### User Registry")
-        st.table([{"User": u, "ID": info.get("user_id"), "Role": info.get("role"), "Friends": len(info.get("friends", []))} for u, info in data["users"].items()])
+        st.markdown("##### Registered User Accounts")
+        st.table([{"User": u, "ID": info.get("user_id"), "Role": info.get("role"), "Status": info.get("status_icon"), "Friends": len(info.get("friends", []))} for u, info in data["users"].items()])
         
-        st.markdown("##### System Audit Logs")
+        st.markdown("##### Recent Audit Logs")
         if os.path.exists(LOG_FILE):
             with open(LOG_FILE, "r", encoding="utf-8") as f:
                 st.code("".join(f.readlines()[-20:]))
