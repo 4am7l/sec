@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import json
 import os
 import hashlib
@@ -182,12 +183,6 @@ st.markdown("""
         padding: 12px;
         border-radius: 4px;
         margin-top: 10px;
-    }
-
-    /* كادر شات مع نزول تلقائي نحو الأسفل */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        display: flex;
-        flex-direction: column-reverse;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -382,7 +377,6 @@ else:
 
                     chat_container = st.container(height=400)
 
-                    # عرض الرسائل بالترتيب الطبيعي (من الأقدم للأحدث في الأسفل)
                     @st.fragment(run_every="2s")
                     def render_live_chat():
                         live_data = load_data()
@@ -451,6 +445,20 @@ else:
                                 if not is_mine and m.get("burn"):
                                     msgs_to_burn.append(m)
 
+                            # علامة نهاية الرسائل + سكريبت إجبار المتصفح على الانتقال إليها أسفل الكادر
+                            st.markdown('<div id="end-of-chat"></div>', unsafe_allow_html=True)
+                            components.html("""
+                            <script>
+                                function scrollToBottom() {
+                                    var element = window.parent.document.getElementById("end-of-chat");
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: "smooth", block: "end" });
+                                    }
+                                }
+                                setTimeout(scrollToBottom, 300);
+                            </script>
+                            """, height=0)
+
                         if msgs_to_burn:
                             for bm in msgs_to_burn:
                                 live_data["messages"].remove(bm)
@@ -461,7 +469,6 @@ else:
 
                     st.markdown("<div style='clear:both;'></div><br>", unsafe_allow_html=True)
 
-                    # نموذج الإرسال يبقى بالأسفل دائماً
                     with st.form(key="send_form", clear_on_submit=True):
                         in_msg = st.text_input("Type a message...", key="in_msg_key", label_visibility="collapsed")
                         up_file = st.file_uploader("Attach File (Img, PDF, TXT)", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
