@@ -66,6 +66,7 @@ def load_data():
                     modified = True
                 udata.setdefault("friends", [])
                 udata.setdefault("friend_requests", [])
+                udata.setdefault("nicknames", {})
                 udata.setdefault("avatar", "")
             
             if modified:
@@ -285,6 +286,7 @@ if not st.session_state.current_user:
                         "user_id": u_id,
                         "friends": [],
                         "friend_requests": [],
+                        "nicknames": {},
                         "avatar": ""
                     }
                     save_data(data)
@@ -327,6 +329,7 @@ else:
     role = user_info.get("role", "user")
     user_id = user_info.get("user_id", "#0000")
     avatar_b64 = user_info.get("avatar", "")
+    my_nicknames = user_info.get("nicknames", {})
 
     st.sidebar.markdown(f"""
     <div style="text-align: center; margin-bottom: 5px;">
@@ -453,23 +456,62 @@ else:
                     f_udata = data["users"].get(f_item, {})
                     f_av = f_udata.get("avatar", "")
                     f_id = f_udata.get("user_id", "")
+                    display_nick = my_nicknames.get(f_item, "")
+                    label_str = f"{display_nick} ({f_item})" if display_nick else f_item
 
-                    col_f1, col_f2 = st.columns([3, 1])
-                    with col_f1:
-                        st.markdown(f"""
-                        <div class="user-card">
-                            <div>
-                                {get_avatar_html(f_av, size=45)}
-                                <strong style="font-size:1.1em; margin-left:10px;">{f_item}</strong>
-                                <span style="color:#9ca3af; font-size:0.85em; margin-left:8px;">({f_id})</span>
-                            </div>
+                    st.markdown(f"""
+                    <div class="user-card">
+                        <div>
+                            {get_avatar_html(f_av, size=45)}
+                            <strong style="font-size:1.1em; margin-left:10px;">{label_str}</strong>
+                            <span style="color:#9ca3af; font-size:0.85em; margin-left:8px;">({f_id})</span>
                         </div>
-                        """, unsafe_allow_html=True)
-                    with col_f2:
-                        if st.button(f"💬 Chat", key=f"go_chat_{f_item}", use_container_width=True):
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    c_act1, c_act2, c_act3, c_act4 = st.columns([1, 1.2, 1, 1])
+                    
+                    with c_act1:
+                        if st.button(f"💬 Chat", key=f"chat_btn_{f_item}", use_container_width=True):
                             st.session_state.selected_chat = f_item
                             st.session_state.current_page = "💬 Messages"
                             st.rerun()
+
+                    with c_act2:
+                        with st.popover("✏️ Nickname", use_container_width=True):
+                            new_nick = st.text_input(f"Nickname for {f_item}", value=display_nick, key=f"nick_input_{f_item}")
+                            if st.button("Save", key=f"save_nick_{f_item}"):
+                                fresh_data = load_data()
+                                fresh_data["users"][current_user].setdefault("nicknames", {})[f_item] = new_nick.strip()
+                                save_data(fresh_data)
+                                st.rerun()
+
+                    with c_act3:
+                        if st.button(f"🗑️ Unfriend", key=f"unf_{f_item}", use_container_width=True):
+                            fresh_data = load_data()
+                            if f_item in fresh_data["users"][current_user].get("friends", []):
+                                fresh_data["users"][current_user]["friends"].remove(f_item)
+                            if current_user in fresh_data["users"][f_item].get("friends", []):
+                                fresh_data["users"][f_item]["friends"].remove(current_user)
+                            save_data(fresh_data)
+                            log_audit("UNFRIEND", f"'{current_user}' unfriended '{f_item}'.")
+                            st.rerun()
+
+                    with c_act4:
+                        if st.button(f"🚫 Block", key=f"block_f_{f_item}", use_container_width=True):
+                            fresh_data = load_data()
+                            fresh_data["users"][current_user].setdefault("blocked", [])
+                            if f_item not in fresh_data["users"][current_user]["blocked"]:
+                                fresh_data["users"][current_user]["blocked"].append(f_item)
+                            if f_item in fresh_data["users"][current_user].get("friends", []):
+                                fresh_data["users"][current_user]["friends"].remove(f_item)
+                            if current_user in fresh_data["users"][f_item].get("friends", []):
+                                fresh_data["users"][f_item]["friends"].remove(current_user)
+                            save_data(fresh_data)
+                            log_audit("USER_BLOCKED", f"'{current_user}' blocked '{f_item}'.")
+                            st.rerun()
+
+                    st.markdown("<hr style='border:0.5px solid #1f232c; margin: 10px 0;'>", unsafe_allow_html=True)
 
         with t_requests:
             fresh_user_info = data["users"].get(current_user, {})
@@ -549,8 +591,9 @@ else:
                 st.markdown("##### Friends")
                 for f_name in my_friends:
                     f_avatar = data["users"][f_name].get("avatar", "")
+                    f_nick = my_nicknames.get(f_name, f_name)
                     is_sel = (st.session_state.selected_chat == f_name)
-                    btn_txt = f"🟢 {f_name}" if is_sel else f"👤 {f_name}"
+                    btn_txt = f"🟢 {f_nick}" if is_sel else f"👤 {f_nick}"
                     if st.button(btn_txt, key=f"user_sel_{f_name}", use_container_width=True):
                         st.session_state.selected_chat = f_name
                         st.rerun()
@@ -562,11 +605,12 @@ else:
                 else:
                     target_id = data["users"][target_chat].get("user_id", "")
                     target_av = data["users"][target_chat].get("avatar", "")
+                    target_disp = my_nicknames.get(target_chat, target_chat)
                     
                     st.markdown(f"""
                     <div class="chat-header-bar">
                         {get_avatar_html(target_av, size=35)}
-                        <strong style="margin-left:8px;">Chatting with: {target_chat} <small>({target_id})</small></strong>
+                        <strong style="margin-left:8px;">Chatting with: {target_disp} <small>({target_chat} | {target_id})</small></strong>
                         <small style="float:right; color:#9ca3af;">AES Encrypted</small>
                     </div>
                     """, unsafe_allow_html=True)
