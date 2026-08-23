@@ -440,7 +440,6 @@ else:
                                     if not is_mine and m.get("burn"):
                                         msgs_to_burn.append(m)
 
-                            # كود JavaScript فعّال لسحب السكرول لأسفل الحاوية تلقائياً
                             components.html("""
                             <script>
                                 var containers = window.parent.document.querySelectorAll('div[data-testid="stElementContainer"]');
@@ -565,4 +564,3 @@ else:
                 st.code("".join(f.readlines()[-20:]))
         else:
             st.info("No audit logs found.")
-```[cite: 6]
