@@ -107,12 +107,8 @@ def get_avatar_html(avatar_b64, size=45, status_icon="🟢"):
     else:
         img_html = f'<div style="width:{size}px; height:{size}px; border-radius:50%; background:linear-gradient(135deg, #4f46e5, #0f172a); color:#f8fafc; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid #6366f1; font-size:{int(size/2.2)}px; box-shadow:0 0 10px rgba(99,102,241,0.5);">👤</div>'
     
-    return f'''
-    <div style="position:relative; display:inline-block; vertical-align:middle;">
-        {img_html}
-        <span style="position:absolute; bottom:0; right:0; font-size:{int(size/3.5)}px; background:#0b0f19; border-radius:50%; padding:2px; box-shadow:0 0 5px rgba(0,0,0,0.8);">{status_icon.split()[0]}</span>
-    </div>
-    '''
+    status_symbol = status_icon.split()[0] if status_icon else "🟢"
+    return f'<div style="position:relative; display:inline-block; vertical-align:middle;">{img_html}<span style="position:absolute; bottom:0; right:0; font-size:{int(size/3.5)}px; background:#0b0f19; border-radius:50%; padding:2px; box-shadow:0 0 5px rgba(0,0,0,0.8);">{status_symbol}</span></div>'
 
 def navigate_to(page_name, target_user=None):
     st.session_state.current_page = page_name
@@ -450,16 +446,8 @@ else:
     user_bio = user_info.get("bio", "")
     my_nicknames = user_info.get("nicknames", {})
 
-    st.sidebar.markdown(f"""
-    <div style="text-align: center; padding: 12px 0;">
-        {get_avatar_html(avatar_b64, size=85, status_icon=status_icon)}
-        <h3 style="margin-top: 12px; margin-bottom: 2px; color:#f8fafc; font-weight:700;">{current_user}</h3>
-        <p style="color: #c084fc; font-size: 0.82em; margin-bottom: 6px;">"{status_text}"</p>
-        <span style="background:linear-gradient(135deg, #4f46e5, #9333ea); color:#ffffff; padding:3px 10px; border-radius:12px; font-size:0.75em; font-weight:bold; box-shadow:0 0 10px rgba(147, 51, 234, 0.4);">
-            {role.upper()}
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    sidebar_profile = f'<div style="text-align: center; padding: 12px 0;">{get_avatar_html(avatar_b64, size=85, status_icon=status_icon)}<h3 style="margin-top: 12px; margin-bottom: 2px; color:#f8fafc; font-weight:700;">{current_user}</h3><p style="color: #c084fc; font-size: 0.82em; margin-bottom: 6px;">"{status_text}"</p><span style="background:linear-gradient(135deg, #4f46e5, #9333ea); color:#ffffff; padding:3px 10px; border-radius:12px; font-size:0.75em; font-weight:bold; box-shadow:0 0 10px rgba(147, 51, 234, 0.4);">{role.upper()}</span></div>'
+    st.sidebar.markdown(sidebar_profile, unsafe_allow_html=True)
     
     st.sidebar.markdown("<small style='color:#94a3b8;'>Your Permanent ID:</small>", unsafe_allow_html=True)
     st.sidebar.code(user_id, language=None)
@@ -541,18 +529,8 @@ else:
 
                         col_card, col_action = st.columns([3, 1])
                         with col_card:
-                            st.markdown(f"""
-                            <div class="user-card">
-                                <div style="display:flex; align-items:center; gap:14px;">
-                                    {get_avatar_html(u_av, size=52, status_icon=u_st_icon)}
-                                    <div>
-                                        <strong style="font-size:1.15em; color:#f8fafc;">{uname}</strong>
-                                        <span style="color:#a855f7; font-size:0.88em; margin-left:6px;">({u_id_val})</span>
-                                        <p style="color:#94a3b8; font-size:0.82em; margin:2px 0 0 0;">{u_bio}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            search_card_html = f'<div class="user-card"><div style="display:flex; align-items:center; gap:14px;">{get_avatar_html(u_av, size=52, status_icon=u_st_icon)}<div><strong style="font-size:1.15em; color:#f8fafc;">{uname}</strong><span style="color:#a855f7; font-size:0.88em; margin-left:6px;">({u_id_val})</span><p style="color:#94a3b8; font-size:0.82em; margin:2px 0 0 0;">{u_bio}</p></div></div></div>'
+                            st.markdown(search_card_html, unsafe_allow_html=True)
 
                         with col_action:
                             if uname in user_info.get("friends", []):
@@ -587,18 +565,8 @@ else:
                     display_nick = my_nicknames.get(f_item, "")
                     label_str = f"{display_nick} ({f_item})" if display_nick else f_item
 
-                    st.markdown(f"""
-                    <div class="user-card">
-                        <div style="display:flex; align-items:center; gap:14px;">
-                            {get_avatar_html(f_av, size=48, status_icon=f_st_icon)}
-                            <div>
-                                <strong style="font-size:1.1em; color:#f8fafc;">{label_str}</strong>
-                                <span style="color:#94a3b8; font-size:0.82em; margin-left:6px;">({f_id})</span>
-                                <small style="display:block; color:#c084fc; font-size:0.78em;">{f_st_txt}</small>
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    friend_card_html = f'<div class="user-card"><div style="display:flex; align-items:center; gap:14px;">{get_avatar_html(f_av, size=48, status_icon=f_st_icon)}<div><strong style="font-size:1.1em; color:#f8fafc;">{label_str}</strong><span style="color:#94a3b8; font-size:0.82em; margin-left:6px;">({f_id})</span><small style="display:block; color:#c084fc; font-size:0.78em;">{f_st_txt}</small></div></div></div>'
+                    st.markdown(friend_card_html, unsafe_allow_html=True)
 
                     c_act1, c_act2, c_act3, c_act4 = st.columns([1, 1.2, 1, 1])
                     
@@ -654,17 +622,8 @@ else:
 
                     col_r1, col_r2, col_r3 = st.columns([3, 1, 1])
                     with col_r1:
-                        st.markdown(f"""
-                        <div class="user-card">
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                {get_avatar_html(req_av, size=42)}
-                                <div>
-                                    <strong style="color:#f8fafc;">{req_user}</strong>
-                                    <span style="color:#94a3b8; font-size:0.82em;">({req_id})</span>
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        req_card_html = f'<div class="user-card"><div style="display:flex; align-items:center; gap:12px;">{get_avatar_html(req_av, size=42)}<div><strong style="color:#f8fafc;">{req_user}</strong><span style="color:#94a3b8; font-size:0.82em;">({req_id})</span></div></div></div>'
+                        st.markdown(req_card_html, unsafe_allow_html=True)
                     with col_r2:
                         if st.button("ACCEPT ✅", key=f"acc_{req_user}", use_container_width=True):
                             fresh_data = load_data()
@@ -753,30 +712,13 @@ else:
                     target_st_txt = target_udata.get("status_text", "Available")
                     target_disp = my_nicknames.get(target_chat, target_chat)
                     
-                    st.markdown(f"""
-                    <div class="chat-header-bar">
-                        <div style="display: flex; align-items: center; gap: 14px;">
-                            {get_avatar_html(target_av, size=46, status_icon=target_st_icon)}
-                            <div>
-                                <strong style="font-size: 1.2em; color:#f8fafc;">{target_disp}</strong>
-                                <span style="color: #c084fc; font-size: 0.88em; margin-left: 6px;">({target_chat} {target_id})</span>
-                                <small style="display:block; color:#94a3b8; font-size: 0.8em;">{target_st_txt}</small>
-                            </div>
-                        </div>
-                        <span style="background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; padding: 5px 12px; border-radius: 12px; font-size: 0.75em; font-weight: bold; box-shadow:0 0 10px rgba(16,185,129,0.3);">
-                            🔒 AES-256
-                        </span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    chat_header_html = f'<div class="chat-header-bar"><div style="display: flex; align-items: center; gap: 14px;">{get_avatar_html(target_av, size=46, status_icon=target_st_icon)}<div><strong style="font-size: 1.2em; color:#f8fafc;">{target_disp}</strong><span style="color: #c084fc; font-size: 0.88em; margin-left: 6px;">({target_chat} {target_id})</span><small style="display:block; color:#94a3b8; font-size: 0.8em;">{target_st_txt}</small></div></div><span style="background: linear-gradient(135deg, #059669, #10b981); color: #ffffff; padding: 5px 12px; border-radius: 12px; font-size: 0.75em; font-weight: bold; box-shadow:0 0 10px rgba(16,185,129,0.3);">🔒 AES-256</span></div>'
+                    st.markdown(chat_header_html, unsafe_allow_html=True)
 
                     pair_key = f"{min(current_user, target_chat)}_{max(current_user, target_chat)}"
                     pinned_msg = data.get("pinned", {}).get(pair_key)
                     if pinned_msg:
-                        st.markdown(f"""
-                        <div class="pinned-banner">
-                            📌 <strong>Pinned Message:</strong> {pinned_msg}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(f'<div class="pinned-banner">📌 <strong>Pinned Message:</strong> {pinned_msg}</div>', unsafe_allow_html=True)
 
                     chat_container = st.container(height=420)
 
