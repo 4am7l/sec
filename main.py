@@ -9,6 +9,7 @@ from datetime import datetime
 from cryptography.fernet import Fernet
 from supabase import create_client, Client
 
+
 # --- SETUP SUPABASE ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
