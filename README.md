@@ -9,31 +9,53 @@ A high-performance, real-time private messaging application featuring End-to-End
 
 ---
 
-## Core Features
+## Overview
 
-- **Vibe Coded Architecture:** Rapidly prototyped and continuously refined through intuitive AI-driven vibe coding for maximum developer velocity and sleek user experience.
-- **End-to-End Encryption:** All chat messages and file payloads are fully encrypted on the client side using Fernet symmetric encryption before storing in the database.
-- **Cloud Database Persistence:** Seamless connection with Supabase ensures users, friendships, and message histories are stored permanently and never lost upon server restarts.
-- **Responsive UI/UX:** Clean, modern chat bubbles designed to fit both desktop browsers and mobile screen layouts smoothly.
-- **Session Persistence:** Built-in session state management prevents unwanted logouts on browser refresh.
-- **Media and File Attachments:** Support for inline image rendering with expandable views, along with direct document file attachments (PDFs, TXT).
-- **Friend Management System:** Search users by unique permanent User IDs (#XXXX), manage friend requests, assign custom nicknames, and personalize status profiles and bios.
-- **Privacy and Account Recovery:** User blocking mechanisms, password change functionality, and account recovery using secure hashed recovery keys.
+Cyber Secure Messenger is engineered to combine absolute privacy with modern messaging convenience. Developed through pure vibe coding, the platform provides end-to-end encryption for text and file transfers, robust cloud persistence via Supabase, responsive chat interface layouts, session recovery across browser reloads, comprehensive friend management tools, and strong account recovery protocols.
+
+---
+
+## Key Features
+
+1. Vibe Coded Architecture: Developed and continuously optimized using AI-driven vibe coding methods for ultra-fast iteration and smooth interface styling.
+2. End-to-End Encryption: Client-side Fernet symmetric encryption safeguards all messages and uploaded media prior to cloud storage.
+3. Cloud Database Persistence: Fully integrated with Supabase PostgreSQL database to ensure accounts, user relationships, and chat histories remain permanently saved across server restarts.
+4. Responsive UI and UX: Seamlessly adapts to desktop computers and mobile browsers with Instagram and Messenger inspired chat bubbles.
+5. Session Persistence: Keeps users authenticated during page refreshes using URL parameter state tracking.
+6. Media and File Attachments: Inline image rendering with expandable previews alongside direct download capabilities for documents such as PDFs and TXT files.
+7. Friend Management System: Search for contacts using unique permanent User IDs (#XXXX), process pending friend requests, configure nicknames, and customize user statuses or bios.
+8. Privacy and Account Recovery: Built-in user blocking mechanisms, password management, and hashed recovery key functionality for account restoration.
 
 ---
 
 ## Tech Stack
 
-- **Methodology:** Vibe Coding
-- **Frontend / UI:** Streamlit, Custom Responsive CSS
-- **Backend and Database:** Supabase (PostgreSQL Cloud Database)
-- **Security and Cryptography:** Python cryptography (Fernet/AES-256 equivalent), SHA-256 Hashing
+- Methodology: Vibe Coding
+- Frontend / UI: Streamlit, Custom Responsive CSS
+- Backend and Database: Supabase (PostgreSQL Cloud Database)
+- Security and Cryptography: Python cryptography (Fernet/AES-256 equivalent), SHA-256 Hashing
 
 ---
 
 ## Local Installation and Setup
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git](https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git)
+1. Clone the repository:
+   git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME.git
    cd YOUR_REPOSITORY_NAME
+
+2. Install required dependencies:
+   pip install -r requirements.txt
+
+3. Configure Secrets:
+   Create a .streamlit folder in the root directory, then create a secrets.toml file inside it with your credentials:
+   SUPABASE_URL = "https://your-project.supabase.co"
+   SUPABASE_KEY = "your-supabase-publishable-key"
+
+4. Launch the application:
+   streamlit run main.py
+
+---
+
+## Author
+
+Vibe Coded by Mohammad.
