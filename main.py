@@ -9,8 +9,6 @@ from datetime import datetime
 from cryptography.fernet import Fernet
 from supabase import create_client, Client
 
-
-# --- SETUP SUPABASE ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
 
@@ -18,24 +16,21 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("Supabase credentials missing! Please configure SUPABASE_URL and SUPABASE_KEY in secrets.")
     st.stop()
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+@st.cache_resource
+def init_supabase():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
+supabase: Client = init_supabase()
 
-def load_or_generate_key():
-    try:
-        if not os.path.exists(KEY_FILE):
-            key = Fernet.generate_key()
-            with open(KEY_FILE, "wb") as f:
-                f.write(key)
-            return key
-        with open(KEY_FILE, "rb") as f:
-            return f.read()
-    except Exception as e:
-        st.error(f"Encryption key error: {e}")
-        st.stop()
+def load_secure_key():
+    if "MY_SECRET_KEY" in st.secrets:
+        return st.secrets["MY_SECRET_KEY"].encode()
+    env_key = os.environ.get("MY_SECRET_KEY")
+    if env_key:
+        return env_key.encode()
+    return b"j0XA4wMPoW3kSVqKXCqojYYOqp2V_lnC0VqydHPnpIiY="
 
-SECRET_KEY = load_or_generate_key()
+SECRET_KEY = load_secure_key()
 cipher = Fernet(SECRET_KEY)
 
 def hash_data(value):
@@ -49,9 +44,8 @@ def generate_recovery_key():
     raw = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
     return f"{raw[:4]}-{raw[4:]}"
 
-# --- SUPABASE DATABASE OPS ---
 def get_all_users():
-    res = supabase.table("users").select("*").execute()
+    res = supabase.table("users").select("username, user_id, role, status_icon, status_text, bio, avatar, friends, friend_requests, nicknames, blocked").execute()
     users_dict = {}
     for row in res.data:
         users_dict[row["username"]] = row
@@ -85,8 +79,8 @@ def update_user_field(username, updates_dict):
     supabase.table("users").update(updates_dict).eq("username", username).execute()
 
 def get_messages(user1, user2):
-    res1 = supabase.table("messages").select("*").eq("sender", user1).eq("recipient", user2).execute().data
-    res2 = supabase.table("messages").select("*").eq("sender", user2).eq("recipient", user1).execute().data
+    res1 = supabase.table("messages").select("*").eq("sender", user1).eq("recipient", user2).order("created_at", desc=True).limit(30).execute().data
+    res2 = supabase.table("messages").select("*").eq("sender", user2).eq("recipient", user1).order("created_at", desc=True).limit(30).execute().data
     all_msgs = res1 + res2
     all_msgs.sort(key=lambda x: x["created_at"])
     return all_msgs
@@ -701,7 +695,7 @@ else:
 
                     chat_container = st.container(height=430)
 
-                    @st.fragment(run_every="2s")
+                    @st.fragment(run_every="4s")
                     def render_live_chat():
                         msgs_to_burn = []
                         filtered_msgs = get_messages(current_user, target_chat)
