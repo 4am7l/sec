@@ -58,4 +58,4 @@ Cyber Secure Messenger is engineered to combine absolute privacy with modern mes
 
 ## Author
 
-Vibe Coded by Mohammad.
+Vibe Coded by Mohammad Janaideh.
