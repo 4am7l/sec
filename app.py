@@ -1,37 +1,137 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
 import os
 import secrets
+import hashlib
+import string
+from cryptography.fernet import Fernet
 from supabase import create_client, Client
 
 app = FastAPI()
 
-# --- SUPABASE CONFIG ---
+# --- SETUP SUPABASE ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://shgxaxtjurbvbqdvmkzt.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_FEE0CeWycaYbelk2VZPTBw_8j7lkftq")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- ENCRYPTION SETUP ---
+KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
+def load_or_generate_key():
+    if not os.path.exists(KEY_FILE):
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as f:
+            f.write(key)
+        return key
+    with open(KEY_FILE, "rb") as f:
+        return f.read()
+
+SECRET_KEY = load_or_generate_key()
+cipher = Fernet(SECRET_KEY)
+
+def hash_data(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+def generate_user_id():
+    raw = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4))
+    return f"#{raw}"
+
+def generate_recovery_key():
+    raw = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+    return f"{raw[:4]}-{raw[4:]}"
 
 # --- WEBSOCKET MANAGER ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
 
-    async def connect(self, user_id: str, websocket: WebSocket):
+    async def connect(self, username: str, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections[user_id] = websocket
+        self.active_connections[username] = websocket
 
-    def disconnect(self, user_id: str):
-        if user_id in self.active_connections:
-            del self.active_connections[user_id]
+    def disconnect(self, username: str):
+        if username in self.active_connections:
+            del self.active_connections[username]
 
-    async def send_to_user(self, recipient_id: str, message: dict):
-        if recipient_id in self.active_connections:
-            await self.active_connections[recipient_id].send_json(message)
+    async def send_to_user(self, recipient: str, message: dict):
+        if recipient in self.active_connections:
+            await self.active_connections[recipient].send_json(message)
 
 manager = ConnectionManager()
 
-# --- ORIGINAL UI INTEGRATION ---
-ORIGINAL_HTML = """
+# --- BACKEND AUTH ENDPOINTS (SUPABASE INTEGRATION) ---
+@app.post("/api/register")
+async def register_user(data: dict):
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and Password required")
+    
+    # Check if user exists
+    res = supabase.table("users").select("*").eq("username", username).execute()
+    if res.data:
+        raise HTTPException(status_code=400, detail="Username already exists in database")
+    
+    # Check total users to assign admin or user
+    all_u = supabase.table("users").select("username").execute()
+    assigned_role = "admin" if len(all_u.data) == 0 else "user"
+    
+    rec_key = generate_recovery_key()
+    u_id = generate_user_id()
+    
+    payload = {
+        "username": username,
+        "password": hash_data(password),
+        "recovery_key": hash_data(rec_key),
+        "role": assigned_role,
+        "user_id": u_id,
+        "avatar": "",
+        "status_text": "Available",
+        "status_icon": "🟢 Online",
+        "bio": "Hey there! I am using Secure Chat.",
+        "friends": [],
+        "friend_requests": [],
+        "nicknames": {},
+        "blocked": []
+    }
+    
+    supabase.table("users").insert(payload).execute()
+    return {"status": "success", "user_id": u_id, "recovery_key": rec_key}
+
+@app.post("/api/login")
+async def login_user(data: dict):
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    
+    res = supabase.table("users").select("*").eq("username", username).execute()
+    if not res.data:
+        raise HTTPException(status_code=401, detail="Account does not exist")
+    
+    user_row = res.data[0]
+    if user_row["password"] != hash_data(password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    
+    return {"status": "success", "user": user_row}
+
+@app.post("/api/recover")
+async def recover_password(data: dict):
+    username = data.get("username", "").strip()
+    rec_key = data.get("recovery_key", "").strip()
+    new_pass = data.get("new_password", "").strip()
+    
+    res = supabase.table("users").select("*").eq("username", username).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_row = res.data[0]
+    if user_row.get("recovery_key") != hash_data(rec_key):
+        raise HTTPException(status_code=401, detail="Invalid Recovery Key")
+    
+    supabase.table("users").update({"password": hash_data(new_pass)}).eq("username", username).execute()
+    return {"status": "success"}
+
+# --- FULL ORIGINAL UI LAYOUT ---
+FULL_UI_HTML = """
 <!DOCTYPE html>
 <html lang="ar">
 <head>
@@ -43,17 +143,23 @@ ORIGINAL_HTML = """
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
         body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
 
-        /* Auth Gate Modal */
-        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.95); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 40px; border-radius: 20px; width: 400px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
-        .auth-card h1 { color: #3b82f6; font-size: 2em; font-weight: 800; margin-bottom: 5px; }
-        .auth-card p { color: #94a3b8; font-size: 0.9em; margin-bottom: 25px; }
-        .auth-card input { width: 100%; padding: 12px 16px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 12px; color: #fff; outline: none; font-size: 0.95em; }
-        .auth-card input:focus { border-color: #3b82f6; }
-        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+        /* Auth Gateway Glassmorphism */
+        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.95); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 35px; border-radius: 20px; width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
+        .auth-card h1 { color: #3b82f6; font-size: 2.2em; font-weight: 800; text-align: center; margin-bottom: 2px; }
+        .auth-card p.subtitle { color: #94a3b8; font-size: 0.9em; text-align: center; margin-bottom: 20px; }
+        
+        .auth-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #090d16; padding: 5px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+        .tab-btn { flex: 1; padding: 8px; background: transparent; border: none; color: #94a3b8; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85em; }
+        .tab-btn.active { background: #2563eb; color: #fff; }
+
+        .auth-form { display: none; }
+        .auth-form.active { display: block; }
+        .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; font-size: 0.9em; }
+        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
         .auth-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
 
-        /* Sidebar Styles (Matching Streamlit Layout) */
+        /* Sidebar UI */
         .sidebar { width: 310px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
         .sidebar-profile { text-align: center; padding: 10px 0; }
         .avatar-circle { width: 85px; height: 85px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 32px; margin-bottom: 10px; }
@@ -63,16 +169,15 @@ ORIGINAL_HTML = """
         .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.25s ease; margin-bottom: 6px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; border-color: rgba(255, 255, 255, 0.2); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
 
-        /* Main Workspace */
+        /* Main Display Areas */
         .main-container { flex: 1; display: flex; flex-direction: column; background: #090d16; }
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
-        /* Chat Specific Header */
+        /* Chat UI */
         .chat-header-bar { background: #111827; padding: 14px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
-        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; }
+        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: #0b0f19; }
         
-        /* Insta Bubbles */
         .msg-wrapper { display: flex; width: 100%; margin-bottom: 2px; }
         .msg-wrapper.sent { justify-content: flex-end; }
         .msg-wrapper.received { justify-content: flex-start; }
@@ -82,23 +187,50 @@ ORIGINAL_HTML = """
         .received .insta-bubble { background: #1e293b; color: #f1f5f9; border-bottom-left-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.05); }
         .msg-time { font-size: 0.68em; opacity: 0.75; display: block; text-align: right; margin-top: 4px; }
 
-        /* Card Overview */
         .card-box { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
         .input-bar { background: #111827; padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); display: flex; gap: 12px; margin-top: 10px; }
         .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; color: #fff; outline: none; resize: none; height: 50px; }
         .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 24px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .user-card { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-    <!-- LOGIN MODAL GATEWAY -->
+    <!-- AUTHENTICATION GATEWAY MODAL -->
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
-            <h1>⚡ CYBER</h1>
-            <p>Direct Encrypted Platform</p>
-            <input type="text" id="l_u" placeholder="Username">
-            <input type="password" id="l_p" placeholder="Password">
-            <button class="auth-btn" onclick="performLogin()">LOGIN 🚀</button>
+            <h1>⚡ CYBER MESSENGER</h1>
+            <p class="subtitle">Encrypted Direct Messaging Platform</p>
+            
+            <div class="auth-tabs">
+                <button class="tab-btn active" onclick="switchAuthTab('login')">🔑 LOGIN</button>
+                <button class="tab-btn" onclick="switchAuthTab('reg')">📝 REGISTER</button>
+                <button class="tab-btn" onclick="switchAuthTab('rec')">🛠️ RECOVERY</button>
+            </div>
+
+            <!-- LOGIN TAB -->
+            <div class="auth-form active" id="form-login">
+                <input type="text" id="l_u" placeholder="Username">
+                <input type="password" id="l_p" placeholder="Password">
+                <button class="auth-btn" onclick="apiLogin()">LOGIN 🚀</button>
+            </div>
+
+            <!-- REGISTER TAB -->
+            <div class="auth-form" id="form-reg">
+                <input type="text" id="r_u" placeholder="Username">
+                <input type="password" id="r_p" placeholder="Password (8+ chars)">
+                <button class="auth-btn" onclick="apiRegister()">CREATE ACCOUNT ✨</button>
+            </div>
+
+            <!-- RECOVERY TAB -->
+            <div class="auth-form" id="form-rec">
+                <input type="text" id="rec_u" placeholder="Username">
+                <input type="text" id="rec_k" placeholder="Recovery Key (XXXX-XXXX)">
+                <input type="password" id="rec_p" placeholder="New Password">
+                <button class="auth-btn" onclick="apiRecover()">RESET PASSWORD 🔐</button>
+            </div>
+
+            <div id="auth-msg" style="margin-top:15px; font-size:0.85em; color:#ef4444; word-break:break-all;"></div>
         </div>
     </div>
 
@@ -107,8 +239,8 @@ ORIGINAL_HTML = """
         <div class="sidebar-profile">
             <div class="avatar-circle" id="user-avatar-disp">👤</div>
             <h3 id="user-name-disp" style="color:#f8fafc; font-weight:700;">User</h3>
-            <p style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"Available"</p>
-            <span class="role-badge">USER</span>
+            <p id="user-status-disp" style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"Available"</p>
+            <span class="role-badge" id="user-role-disp">USER</span>
         </div>
 
         <small style="color:#94a3b8;">Your Permanent ID:</small>
@@ -128,35 +260,35 @@ ORIGINAL_HTML = """
         <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
     </div>
 
-    <!-- MAIN CONTENT AREA -->
+    <!-- MAIN DISPLAY AREAS -->
     <div class="main-container">
 
-        <!-- DASHBOARD PAGE -->
+        <!-- DASHBOARD -->
         <div class="page-content active" id="page-dashboard">
             <h3 style="margin-bottom:20px;">📊 System Overview</h3>
             <div style="display:flex; gap:15px; margin-bottom:20px;">
-                <div class="card-box"><h2 style="color:#60a5fa; font-size:2.2em;">1</h2><small style="color:#94a3b8;">Active Friends</small></div>
-                <div class="card-box"><h2 style="color:#f59e0b; font-size:2.2em;">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
-                <div class="card-box"><h2 style="color:#10b981; font-size:2.2em;">⚡</h2><small style="color:#94a3b8;">WebSocket Realtime Active</small></div>
+                <div class="card-box"><h2 style="color:#60a5fa; font-size:2.2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
+                <div class="card-box"><h2 style="color:#f59e0b; font-size:2.2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
+                <div class="card-box"><h2 style="color:#10b981; font-size:2.2em;">⚡</h2><small style="color:#94a3b8;">Supabase Connected</small></div>
             </div>
             <button class="auth-btn" onclick="showPage('messages', document.querySelectorAll('.nav-btn')[1])">💬 Open Chat Room</button>
         </div>
 
-        <!-- MESSAGES CHAT ROOM PAGE -->
+        <!-- MESSAGES -->
         <div class="page-content" id="page-messages">
             <div class="chat-header-bar">
                 <div style="display:flex; align-items:center; gap:14px;">
-                    <div style="font-size:1.5em;">👤</div>
+                    <div style="font-size:1.5em;" id="chat-target-avatar">👤</div>
                     <div>
                         <strong id="target-disp-name" style="font-size: 1.2em; color:#f8fafc;">Select Friend to Chat</strong>
-                        <small style="display:block; color:#94a3b8;">Realtime WebSocket Channel</small>
+                        <small style="display:block; color:#94a3b8;">Encrypted Channel</small>
                     </div>
                 </div>
                 <span style="background:#059669; color:#ffffff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted</span>
             </div>
 
             <div style="margin-bottom:10px;">
-                <input type="text" id="target-user-input" placeholder="Recipient Username..." style="padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; width:250px;">
+                <input type="text" id="target-user-input" placeholder="Recipient Username..." style="padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; width:260px; outline:none;">
             </div>
 
             <div class="chat-message-container" id="chat-box"></div>
@@ -167,52 +299,122 @@ ORIGINAL_HTML = """
             </div>
         </div>
 
-        <!-- FRIENDS PAGE -->
+        <!-- FRIENDS -->
         <div class="page-content" id="page-friends">
             <h3>👥 Friend Management</h3>
             <p style="color:#94a3b8; margin-top:10px;">Search users or manage requests...</p>
         </div>
 
-        <!-- PROFILE PAGE -->
+        <!-- PROFILE -->
         <div class="page-content" id="page-profile">
             <h3>👤 Profile Customization</h3>
             <p style="color:#94a3b8; margin-top:10px;">Status and Bio customization ready.</p>
         </div>
 
-        <!-- BLOCKLIST PAGE -->
+        <!-- BLOCKLIST -->
         <div class="page-content" id="page-blocklist">
             <h3>🚫 Blocklist Management</h3>
             <p style="color:#94a3b8; margin-top:10px;">No blocked users.</p>
         </div>
 
-        <!-- SETTINGS PAGE -->
+        <!-- SETTINGS -->
         <div class="page-content" id="page-settings">
-            <h3>⚙️ Security Settings</h3>
-            <p style="color:#94a3b8; margin-top:10px;">Account security and encryption key status: ACTIVE</p>
+            <h3>⚙️ Account Security Settings</h3>
+            <p style="color:#94a3b8; margin-top:10px;">Security and keys status: ACTIVE</p>
         </div>
 
     </div>
 
     <script>
         let ws = null;
-        let currentUser = "";
+        let currentUser = null;
 
-        function showPage(pageId, btnEl) {
-            document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+        function switchAuthTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
             
-            document.getElementById('page-' + pageId).classList.add('active');
-            if(btnEl) btnEl.classList.add('active');
+            if(tab === 'login') {
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+                document.getElementById('form-login').classList.add('active');
+            } else if(tab === 'reg') {
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+                document.getElementById('form-reg').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab-btn')[2].classList.add('active');
+                document.getElementById('form-rec').classList.add('active');
+            }
+            document.getElementById('auth-msg').innerText = "";
         }
 
-        function performLogin() {
-            const user = document.getElementById('l_u').value.trim();
-            if(!user) return alert("Enter Username");
+        async function apiLogin() {
+            const u = document.getElementById('l_u').value.trim();
+            const p = document.getElementById('l_p').value.trim();
+            if(!u || !p) return document.getElementById('auth-msg').innerText = "Enter username & password";
 
-            currentUser = user;
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: u, password: p})
+            });
+            const data = await res.json();
+            if(res.ok) {
+                initUserSession(data.user);
+            } else {
+                document.getElementById('auth-msg').innerText = data.detail || "Login failed";
+            }
+        }
+
+        async function apiRegister() {
+            const u = document.getElementById('r_u').value.trim();
+            const p = document.getElementById('r_p').value.trim();
+            if(!u || !p) return document.getElementById('auth-msg').innerText = "Enter username & password";
+
+            const res = await fetch('/api/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: u, password: p})
+            });
+            const data = await res.json();
+            if(res.ok) {
+                document.getElementById('auth-msg').style.color = "#10b981";
+                document.getElementById('auth-msg').innerText = `SUCCESS! PERMANENT ID: ${data.user_id} | SAVE RECOVERY KEY: ${data.recovery_key}`;
+            } else {
+                document.getElementById('auth-msg').style.color = "#ef4444";
+                document.getElementById('auth-msg').innerText = data.detail || "Registration failed";
+            }
+        }
+
+        async function apiRecover() {
+            const u = document.getElementById('rec_u').value.trim();
+            const k = document.getElementById('rec_k').value.trim();
+            const p = document.getElementById('rec_p').value.trim();
+
+            const res = await fetch('/api/recover', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: u, recovery_key: k, new_password: p})
+            });
+            const data = await res.json();
+            if(res.ok) {
+                document.getElementById('auth-msg').style.color = "#10b981";
+                document.getElementById('auth-msg').innerText = "Password reset successfully! You can login now.";
+            } else {
+                document.getElementById('auth-msg').style.color = "#ef4444";
+                document.getElementById('auth-msg').innerText = data.detail || "Recovery failed";
+            }
+        }
+
+        function initUserSession(userRow) {
+            currentUser = userRow.username;
             document.getElementById('user-name-disp').innerText = currentUser;
             document.getElementById('user-avatar-disp').innerText = currentUser.charAt(0).toUpperCase();
-            document.getElementById('user-id-disp').innerText = "#" + Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('user-status-disp').innerText = `"${userRow.status_text || 'Available'}"`;
+            document.getElementById('user-role-disp').innerText = (userRow.role || 'USER').toUpperCase();
+            document.getElementById('user-id-disp').innerText = userRow.user_id || '#0000';
+            
+            document.getElementById('dash-friends-count').innerText = (userRow.friends || []).length;
+            document.getElementById('dash-reqs-count').innerText = (userRow.friend_requests || []).length;
+
             document.getElementById('auth-modal').style.display = 'none';
 
             // Connect Realtime WebSocket
@@ -225,13 +427,21 @@ ORIGINAL_HTML = """
             };
         }
 
+        function showPage(pageId, btnEl) {
+            document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById('page-' + pageId).classList.add('active');
+            if(btnEl) btnEl.classList.add('active');
+        }
+
         function sendMsg() {
             const input = document.getElementById("msg-input");
             const target = document.getElementById("target-user-input").value.trim();
             const msg = input.value.trim();
 
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Not Connected");
-            if(!msg || !target) return alert("Enter Recipient & Message");
+            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Session Disconnected");
+            if(!msg || !target) return alert("Specify Recipient and Message");
 
             ws.send(JSON.stringify({ recipient: target, message: msg }));
             input.value = "";
@@ -252,8 +462,8 @@ ORIGINAL_HTML = """
 """
 
 @app.get("/", response_class=HTMLResponse)
-async def get_root():
-    return ORIGINAL_HTML
+async def get_index():
+    return FULL_UI_HTML
 
 @app.websocket("/ws/{username}")
 async def websocket_endpoint(websocket: WebSocket, username: str):
@@ -266,7 +476,23 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
             content = data.get("message")
 
             if content and recipient:
+                # Encrypt message before saving into database
+                enc_content = cipher.encrypt(content.encode()).decode()
+                msg_id = secrets.token_hex(8)
+
+                payload = {
+                    "id": msg_id,
+                    "sender": sender,
+                    "recipient": recipient,
+                    "content": enc_content,
+                    "burn": False,
+                    "reply": None,
+                    "reactions": {}
+                }
+                supabase.table("messages").insert(payload).execute()
+
                 msg_out = {
+                    "id": msg_id,
                     "sender": sender,
                     "recipient": recipient,
                     "content": content,
