@@ -134,19 +134,22 @@ async def get_all_users_api():
 
 @app.get("/api/get_messages/{u1}/{u2}")
 async def get_messages_api(u1: str, u2: str):
-    res1 = supabase.table("messages").select("*").eq("sender", u1).eq("recipient", u2).execute().data or []
-    res2 = supabase.table("messages").select("*").eq("sender", u2).eq("recipient", u1).execute().data or []
-    all_msgs = res1 + res2
-    all_msgs.sort(key=lambda x: x.get("created_at", ""))
-    
-    decrypted_msgs = []
-    for m in all_msgs:
-        try:
-            m['content'] = cipher.decrypt(m['content'].encode()).decode()
-        except Exception:
-            m['content'] = "[فشل فك التشفير]"
-        decrypted_msgs.append(m)
-    return {"status": "success", "messages": decrypted_msgs}
+    try:
+        res1 = supabase.table("messages").select("*").eq("sender", u1).eq("recipient", u2).execute().data or []
+        res2 = supabase.table("messages").select("*").eq("sender", u2).eq("recipient", u1).execute().data or []
+        all_msgs = res1 + res2
+        all_msgs.sort(key=lambda x: x.get("created_at", ""))
+        
+        decrypted_msgs = []
+        for m in all_msgs:
+            try:
+                m['content'] = cipher.decrypt(m['content'].encode()).decode()
+            except Exception:
+                m['content'] = m.get('content', '')
+            decrypted_msgs.append(m)
+        return {"status": "success", "messages": decrypted_msgs}
+    except Exception as e:
+        return {"status": "error", "messages": [], "detail": str(e)}
 
 @app.post("/api/send_message_http")
 async def send_message_http(data: dict):
@@ -175,7 +178,7 @@ async def send_message_http(data: dict):
     try:
         supabase.table("messages").insert(db_payload).execute()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"فشل الحفظ بجدول الرسائل: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"خطأ حفظ الرسالة: {str(e)}")
 
     msg_out = {
         "id": msg_id,
@@ -263,8 +266,8 @@ FULL_UI_HTML = """
         .st-tab-content { display: none; }
         .st-tab-content.active { display: block; }
 
-        .user-card { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
-        .card-box { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
+        .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+        .card-box { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
     </style>
 </head>
 <body>
@@ -511,16 +514,22 @@ FULL_UI_HTML = """
             document.getElementById('target-disp-name').innerText = `محادثة مباشرة مع: ${friendName}`;
             
             const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML = "<p style='color:#94a3b8;'>جاري تحميل السجل التفاعلي...</p>";
+            chatBox.innerHTML = "<p style='color:#94a3b8;'>جاري تحميل السجل...</p>";
 
-            const res = await fetch(`/api/get_messages/${userData.username}/${friendName}`);
-            const data = await res.json();
-            chatBox.innerHTML = "";
+            try {
+                const res = await fetch(`/api/get_messages/${userData.username}/${friendName}`);
+                const data = await res.json();
+                chatBox.innerHTML = "";
 
-            if(res.ok && data.messages) {
-                data.messages.forEach(m => {
-                    appendBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن', null);
-                });
+                if(res.ok && data.messages && data.messages.length > 0) {
+                    data.messages.forEach(m => {
+                        appendBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن', null);
+                    });
+                } else {
+                    chatBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد رسائل سابقة. ابدأ المحادثة الآن!</p>";
+                }
+            } catch(e) {
+                chatBox.innerHTML = "<p style='color:#ef4444;'>خطأ في الاتصال بالداتابيز.</p>";
             }
         }
 
@@ -562,7 +571,6 @@ FULL_UI_HTML = """
                 file: attachedFileData
             };
 
-            // إرسال مضمون ومباشر عبر REST API لضمان حفظ الرسالة وسرعة الاستجابة
             try {
                 const res = await fetch('/api/send_message_http', {
                     method: 'POST',
@@ -570,7 +578,9 @@ FULL_UI_HTML = """
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                if(!res.ok) alert(data.detail || "فشل إرسال الرسالة");
+                if(!res.ok) {
+                    alert(data.detail || "فشل إرسال الرسالة");
+                }
             } catch(e) {
                 alert("خطأ في الاتصال أثناء إرسال الرسالة");
             }
