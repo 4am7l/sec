@@ -95,11 +95,9 @@ async def register_user(data: dict):
             "user_id": u_id,
             "avatar": "",
             "status_text": "Available",
-            "status_icon": "🟢 Online",
             "bio": "مرحباً! أنا أستخدم Cyber Messenger.",
             "friends": [],
             "friend_requests": [],
-            "nicknames": {},
             "blocked": []
         }
         supabase.table("users").insert(payload).execute()
@@ -113,10 +111,15 @@ async def login_user(data: dict):
         raise HTTPException(status_code=500, detail="خطأ في الداتابيز")
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
-    res = supabase.table("users").select("*").eq("username", username).execute()
-    if not res.data or res.data[0]["password"] != hash_data(password):
-        raise HTTPException(status_code=401, detail="معلومات الدخول خاطئة")
-    return {"status": "success", "user": res.data[0]}
+    try:
+        res = supabase.table("users").select("*").eq("username", username).execute()
+        if not res.data or res.data[0]["password"] != hash_data(password):
+            raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة المرور غير صحيحة")
+        return {"status": "success", "user": res.data[0]}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/get_user/{username}")
 async def get_user_data(username: str):
@@ -275,7 +278,6 @@ FULL_UI_HTML = """
         .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
         .card-box { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
         
-        /* Profile Modal Styles */
         .modal-overlay-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; }
         .modal-overlay-bg.active { display: flex; }
         .profile-modal { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; width: 340px; padding: 30px; text-align: center; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
@@ -305,6 +307,7 @@ FULL_UI_HTML = """
                 <input type="password" id="r_p" placeholder="Password (8+ chars)">
                 <button class="auth-btn" onclick="apiRegister()">CREATE ACCOUNT ✨</button>
             </div>
+            <div id="auth-err-msg" style="color:#ef4444; font-size:0.85em; text-align:center; margin-top:10px; font-weight:bold;"></div>
         </div>
     </div>
 
@@ -393,8 +396,6 @@ FULL_UI_HTML = """
         <div class="page-content" id="page-profile">
             <h3>👤 Profile Settings</h3>
             <div style="background:#111827; padding:30px; border-radius:16px; margin-top:15px; max-width: 500px;">
-                
-                <!-- Avatar Upload Section -->
                 <div style="text-align:center; margin-bottom: 25px;">
                     <label for="avatar-upload" style="cursor:pointer; display:inline-block;">
                         <div class="avatar-circle" id="prof-avatar-preview" style="width:100px; height:100px; font-size:40px; margin:0 auto; border:3px dashed #3b82f6;">👤</div>
@@ -434,6 +435,7 @@ FULL_UI_HTML = """
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+            document.getElementById('auth-err-msg').innerText = "";
             if(tab === 'login') {
                 document.querySelectorAll('.tab-btn')[0].classList.add('active');
                 document.getElementById('form-login').classList.add('active');
@@ -446,27 +448,50 @@ FULL_UI_HTML = """
         async function apiLogin() {
             const u = document.getElementById('l_u').value.trim();
             const p = document.getElementById('l_p').value.trim();
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
-            if(res.ok) initUserSession(data.user);
-            else alert(data.detail);
+            const errBox = document.getElementById('auth-err-msg');
+            errBox.innerText = "جاري التحقق...";
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                if(res.ok) {
+                    errBox.innerText = "";
+                    initUserSession(data.user);
+                } else {
+                    errBox.innerText = data.detail || "خطأ في تسجيل الدخول";
+                }
+            } catch(err) {
+                errBox.innerText = "فشل الاتصال بالخادم";
+            }
         }
 
         async function apiRegister() {
             const u = document.getElementById('r_u').value.trim();
             const p = document.getElementById('r_p').value.trim();
-            const res = await fetch('/api/register', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
-            if(res.ok) alert(`تم التسجيل بنجاح! احتفظ بـ ID: ${data.user_id}`);
-            else alert(data.detail);
+            const errBox = document.getElementById('auth-err-msg');
+            errBox.innerText = "جاري الإنشاء...";
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                if(res.ok) {
+                    errBox.innerText = "";
+                    alert(`تم التسجيل بنجاح! احتفظ بـ ID: ${data.user_id}`);
+                    switchAuthTab('login');
+                } else {
+                    errBox.innerText = data.detail || "خطأ في التسجيل";
+                }
+            } catch(err) {
+                errBox.innerText = "فشل الاتصال بالخادم";
+            }
         }
 
         function connectWebSocket() {
@@ -495,20 +520,23 @@ FULL_UI_HTML = """
         }
 
         async function refreshUserData() {
-            const res = await fetch(`/api/get_user/${userData.username}`);
-            const data = await res.json();
-            if(res.ok) {
-                userData = data.user;
-                updateUIProfile();
-                renderChatFriendsSidebar();
-            }
-            const resAll = await fetch('/api/get_all_users');
-            const dataAll = await resAll.json();
-            if(resAll.ok) {
-                allUsersCache = dataAll.users;
-                renderFriendsTabs();
-                renderBlocklist();
-            }
+            if(!userData) return;
+            try {
+                const res = await fetch(`/api/get_user/${userData.username}`);
+                const data = await res.json();
+                if(res.ok) {
+                    userData = data.user;
+                    updateUIProfile();
+                    renderChatFriendsSidebar();
+                }
+                const resAll = await fetch('/api/get_all_users');
+                const dataAll = await resAll.json();
+                if(resAll.ok) {
+                    allUsersCache = dataAll.users;
+                    renderFriendsTabs();
+                    renderBlocklist();
+                }
+            } catch(e) {}
         }
 
         function getUserDetails(username) {
@@ -738,7 +766,7 @@ FULL_UI_HTML = """
             allUsersCache.forEach(u => {
                 if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || (u.display_name && u.display_name.toLowerCase().includes(q)) || u.user_id.toLowerCase().includes(q))) {
                     const isFriend = (userData.friends || []).includes(u.username);
-                    const isPending = (u.friend_requests || []).includes(userData.username);
+                    const isPending = (u.friend_requests || []).includes(u.username);
                     const ud = getUserDetails(u.username);
 
                     let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
