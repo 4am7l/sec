@@ -185,7 +185,7 @@ async def send_message_http(data: dict):
         "id": msg_id,
         "sender": sender,
         "recipient": recipient,
-        "content": final_payload, # إرسال النص مع رابط الملف للطرفين
+        "content": final_payload,
         "time": "الآن"
     }
     
@@ -574,17 +574,12 @@ FULL_UI_HTML = """
                 file: attachedFileData
             };
 
-            // بناء المحتوى محلياً للعرض الفوري وتجنب النص الطويل
+            // بناء المحتوى المباشر محلياً بدون إظهار كود الـ Base64 كنص
             let localContent = msg;
-            if (attachedFileData) {
-                if (attachedFileData.type && attachedFileData.type.startsWith("image/")) {
-                    localContent += `<br><img src="${attachedFileData.base64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
-                } else {
-                    localContent += `<br><a href="${attachedFileData.base64}" download="${attachedFileData.name}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${attachedFileData.name}</a>`;
-                }
-            }
+            let tempFile = attachedFileData;
 
-            appendRawBubble(userData.username, localContent, 'الآن');
+            appendParsedBubble(userData.username, localContent + (tempFile ? `\\n[FILE:${tempFile.name}:${tempFile.type}]${tempFile.base64}` : ''), 'الآن');
+            
             input.value = "";
             attachedFileData = null;
             document.getElementById('file-preview-name').style.display = 'none';
@@ -599,38 +594,34 @@ FULL_UI_HTML = """
             } catch(e) {}
         }
 
-        // دالة لتحليل الرسالة القادمة وفصل الصور والملفات عن النص الطويل
+        // الدالة الموحدة لفصل الوسم [FILE:...] وعرض الصور ب شكل نظيف لدى الطرفين
         function appendParsedBubble(sender, rawContent, time) {
-            let finalHtml = "";
-            if (rawContent && rawContent.includes("[FILE:")) {
-                const parts = rawContent.split("[FILE:");
-                const textPart = parts[0];
+            let textPart = rawContent || '';
+            let fileHtml = '';
+
+            if (textPart.includes("[FILE:")) {
+                const parts = textPart.split("[FILE:");
+                textPart = parts[0];
                 const fileMeta = parts[1].split("]");
                 const fileNameType = fileMeta[0].split(":");
                 const fileBase64 = fileMeta[1];
                 const fileType = fileNameType[1] || "";
                 const fileName = fileNameType[0] || "file";
 
-                finalHtml += textPart;
                 if (fileType.startsWith("image/")) {
-                    finalHtml += `<br><img src="${fileBase64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
+                    fileHtml = `<br><img src="${fileBase64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
                 } else {
-                    finalHtml += `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${fileName}</a>`;
+                    fileHtml = `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${fileName}</a>`;
                 }
-            } else {
-                finalHtml = rawContent || '';
             }
-            appendRawBubble(sender, finalHtml, time);
-        }
 
-        function appendRawBubble(sender, htmlContent, time) {
             const isMine = (sender === userData.username);
             const chatBox = document.getElementById("chat-box");
             if (!chatBox) return;
             const wrapper = document.createElement("div");
             wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
 
-            wrapper.innerHTML = `<div class="insta-bubble">${htmlContent}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
+            wrapper.innerHTML = `<div class="insta-bubble">${textPart}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
@@ -819,7 +810,7 @@ FULL_UI_HTML = """
 
         async function saveProfile() {
             const status_text = document.getElementById('prof-status').value;
-            const bio = document.getElementById('prof-bio.value').value; // تم التصحيح للاستقرار
+            const bio = document.getElementById('prof-bio').value;
 
             const res = await fetch('/api/update_user', {
                 method: 'POST',
