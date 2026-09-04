@@ -2,14 +2,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import os
 import secrets
-from supabase import create_client, Client
 
 app = FastAPI()
-
-# --- SUPABASE CONFIG ---
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://shgxaxtjurbvbqdvmkzt.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_FEE0CeWycaYbelk2VZPTBw_8j7lkftq")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- WEBSOCKET MANAGER ---
 class ConnectionManager:
@@ -30,8 +24,8 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- FULL rich HTML INTERFACE ---
-FULL_HTML = """
+# --- HTML / CSS / JS UI ---
+HTML_LAYOUT = """
 <!DOCTYPE html>
 <html lang="ar">
 <head>
@@ -43,17 +37,17 @@ FULL_HTML = """
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
         body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
 
-        /* Auth Modal Glassmorphism */
-        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.92); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 999; }
+        /* Login Modal */
+        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.95); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 999; }
         .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.1); padding: 35px; border-radius: 20px; width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .auth-card h2 { color: #3b82f6; margin-bottom: 20px; font-size: 1.6em; }
         .auth-card input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; font-size: 0.95em; }
         .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 5px; }
         .auth-btn:hover { transform: scale(1.02); }
 
-        /* Sidebar & Layout */
+        /* Layout */
         .sidebar { width: 300px; background: #111827; border-right: 1px solid rgba(255,255,255,0.08); padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .logo { font-size: 1.5em; font-weight: 800; color: #3b82f6; text-align: center; letter-spacing: 1px; }
+        .logo { font-size: 1.5em; font-weight: 800; color: #3b82f6; text-align: center; }
         .profile-card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 14px; display: flex; align-items: center; gap: 12px; }
         .avatar { width: 42px; height: 42px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2em; }
         
@@ -73,55 +67,46 @@ FULL_HTML = """
 
         .input-bar { background: #111827; padding: 18px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 12px; }
         .input-bar input { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 18px; color: #fff; outline: none; font-size: 0.95em; }
-        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 28px; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .send-btn:hover { transform: scale(1.03); }
+        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 28px; border-radius: 12px; font-weight: bold; cursor: pointer; }
         .block-btn { background: #ef4444; color: #fff; border: none; padding: 8px; border-radius: 8px; width: 100%; font-size: 0.8em; font-weight: bold; cursor: pointer; margin-top: 6px; }
     </style>
 </head>
 <body>
 
-    <!-- Gateway / Login Modal -->
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
-            <h2>⚡ LOGIN / REGISTER</h2>
-            <input type="text" id="user-id-input" placeholder="Enter Username / UUID">
+            <h2>⚡ CYBER AUTH</h2>
+            <input type="text" id="user-id-input" placeholder="Username / User ID">
             <input type="password" id="user-pass-input" placeholder="Password">
-            <button class="auth-btn" onclick="startApp()">Start Session 🚀</button>
+            <button class="auth-btn" onclick="startApp()">Login & Connect 🚀</button>
             <div id="rec-key" style="margin-top:15px; font-size:0.75em; color:#10b981; word-break:break-all;"></div>
         </div>
     </div>
 
-    <!-- Main Workspace -->
     <div class="sidebar">
         <div class="logo">⚡ CYBER MESSENGER</div>
-        
         <div class="profile-card">
             <div class="avatar" id="my-avatar">U</div>
             <div>
-                <strong id="display-my-id" style="font-size: 0.9em; color: #f8fafc;">Not Connected</strong>
-                <p style="font-size: 0.7em; color: #10b981;">● Online</p>
+                <strong id="display-my-id" style="font-size: 0.9em; color: #f8fafc;">Offline</strong>
+                <p style="font-size: 0.7em; color: #10b981;">● Active Session</p>
             </div>
         </div>
-
         <div style="margin-top: 15px;">
-            <label style="font-size:0.8em; color:#94a3b8; font-weight:600;">Chatting With (UUID / Username):</label>
-            <input type="text" id="target-id-input" placeholder="Recipient ID" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; color:#fff; border-radius:10px; margin-top:6px; outline:none;">
+            <label style="font-size:0.8em; color:#94a3b8; font-weight:600;">Recipient Username:</label>
+            <input type="text" id="target-id-input" placeholder="Target Username" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; color:#fff; border-radius:10px; margin-top:6px; outline:none;">
             <button class="block-btn" onclick="alert('User Blocked 🚫')">Block User 🚫</button>
         </div>
     </div>
 
     <div class="chat-area">
         <div class="chat-header">
-            <div>
-                <strong id="chat-title" style="font-size: 1.1em;">End-to-End Encrypted Chat</strong>
-            </div>
-            <span class="status-badge">🔒 0ms Realtime WebSocket</span>
+            <div><strong style="font-size: 1.1em;">Encrypted Live Room</strong></div>
+            <span class="status-badge">⚡ Realtime WebSocket</span>
         </div>
-
         <div class="messages-container" id="chat-box"></div>
-
         <div class="input-bar">
-            <input type="text" id="msg-input" placeholder="Write encrypted message..." onkeydown="if(event.key==='Enter') sendMsg()">
+            <input type="text" id="msg-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMsg()">
             <button class="send-btn" onclick="sendMsg()">SEND 🚀</button>
         </div>
     </div>
@@ -132,14 +117,12 @@ FULL_HTML = """
 
         function startApp() {
             const inputVal = document.getElementById("user-id-input").value.trim();
-            if(!inputVal) return alert("Please enter User ID / Username");
+            if(!inputVal) return alert("Enter Username");
             
             myUserId = inputVal;
             document.getElementById("display-my-id").innerText = myUserId;
             document.getElementById("my-avatar").innerText = myUserId.charAt(0).toUpperCase();
             document.getElementById("auth-modal").style.display = "none";
-
-            // Generate Recovery Key demo
             document.getElementById("rec-key").innerText = "RECOVERY KEY: REC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -147,7 +130,7 @@ FULL_HTML = """
 
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                appendBubble(data.sender_id, data.encrypted_content, data.created_at);
+                appendBubble(data.sender_id, data.content, data.time);
             };
         }
 
@@ -156,13 +139,12 @@ FULL_HTML = """
             const receiverId = document.getElementById("target-id-input").value.trim();
             const msg = input.value.trim();
 
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("WebSocket Disconnected!");
-            if(!msg || !receiverId) return alert("Please set Recipient ID & Message");
+            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Not Connected");
+            if(!msg || !receiverId) return alert("Enter recipient & message");
 
             ws.send(JSON.stringify({
                 receiver_id: receiverId,
-                encrypted_content: msg,
-                encrypted_key: "FERNET_SECURED"
+                content: msg
             }));
 
             input.value = "";
@@ -183,11 +165,8 @@ FULL_HTML = """
 """
 
 @app.get("/", response_class=HTMLResponse)
-async def get_index():
-    return HTML_CONTENT_FULL()
-
-def HTML_CONTENT_FULL():
-    return FULL_HTML
+async def read_root():
+    return HTML_LAYOUT
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
@@ -195,22 +174,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     try:
         while True:
             data = await websocket.receive_json()
-            sender_id = user_id
             receiver_id = data.get("receiver_id")
-            encrypted_content = data.get("encrypted_content")
-            encrypted_key = data.get("encrypted_key", "")
+            content = data.get("content")
 
-            if encrypted_content and receiver_id:
+            if content and receiver_id:
                 msg_out = {
-                    "id": secrets.token_hex(4),
-                    "sender_id": sender_id,
+                    "sender_id": user_id,
                     "receiver_id": receiver_id,
-                    "encrypted_content": encrypted_content,
-                    "encrypted_key": encrypted_key,
-                    "created_at": "NOW"
+                    "content": content,
+                    "time": "NOW"
                 }
                 await manager.send_to_user(receiver_id, msg_out)
-                await manager.send_to_user(sender_id, msg_out)
+                await manager.send_to_user(user_id, msg_out)
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)
