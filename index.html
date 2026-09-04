@@ -2,82 +2,100 @@
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>⚡ CYBER MESSENGER</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
 
-        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.96); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 35px; border-radius: 20px; width: 440px; }
-        .auth-card h1 { color: #3b82f6; font-size: 2.2em; font-weight: 800; text-align: center; }
-        .auth-card p { color: #94a3b8; text-align: center; margin-bottom: 20px; }
+        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.96); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 15px; }
+        .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 30px 25px; border-radius: 20px; width: 100%; max-width: 420px; }
+        .auth-card h1 { color: #3b82f6; font-size: 1.8em; font-weight: 800; text-align: center; }
+        .auth-card p { color: #94a3b8; text-align: center; margin-bottom: 20px; font-size: 0.9em; }
         
         .auth-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #090d16; padding: 5px; border-radius: 12px; }
-        .tab-btn { flex: 1; padding: 8px; background: transparent; border: none; color: #94a3b8; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .tab-btn { flex: 1; padding: 10px; background: transparent; border: none; color: #94a3b8; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9em; }
         .tab-btn.active { background: #2563eb; color: #fff; }
 
         .auth-form { display: none; }
         .auth-form.active { display: block; }
-        .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; }
-        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: 0.2s; }
-        .auth-btn:hover { opacity: 0.9; transform: scale(0.98); }
+        .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; font-size: 1em; }
+        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1em; transition: 0.2s; }
 
-        .sidebar { width: 300px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .sidebar-profile { text-align: center; margin-bottom: 10px; }
-        .avatar-circle { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 30px; margin: 0 auto 10px auto; overflow: hidden; }
+        .sidebar { width: 280px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 15px; display: flex; flex-direction: column; gap: 10px; z-index: 10; }
+        .sidebar-profile { text-align: center; margin-bottom: 5px; }
+        .avatar-circle { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 26px; margin: 0 auto 8px auto; overflow: hidden; }
         .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
         
-        .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; margin-bottom: 6px; }
+        .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 14px; text-align: left; font-size: 0.9em; font-weight: 600; width: 100%; cursor: pointer; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; }
 
-        .main-container { flex: 1; display: flex; flex-direction: column; background: #090d16; }
-        .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
+        .main-container { flex: 1; display: flex; flex-direction: column; background: #090d16; overflow: hidden; }
+        .page-content { flex: 1; display: none; padding: 16px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
-        .chat-container-layout { flex: 1; display: flex; gap: 15px; height: calc(100vh - 120px); }
-        .friends-sidebar { width: 260px; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 15px; overflow-y: auto; }
-        .friend-item { padding: 12px; background: #090d16; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 10px;}
+        .chat-container-layout { flex: 1; display: flex; gap: 12px; height: calc(100vh - 100px); height: calc(100dvh - 100px); }
+        .friends-sidebar { width: 250px; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 12px; overflow-y: auto; flex-shrink: 0; }
+        .friend-item { padding: 10px; background: #090d16; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
         .friend-item:hover, .friend-item.active { background: #2563eb; border-color: #3b82f6; }
-        .small-avatar { width: 35px; height: 35px; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 14px; }
+        .small-avatar { width: 35px; height: 35px; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 14px; flex-shrink: 0; }
         .small-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-        .chat-main-area { flex: 1; display: flex; flex-direction: column; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px; }
-        .chat-header-bar { padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
-        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: #0b0f19; border-radius: 14px; }
+        .chat-main-area { flex: 1; display: flex; flex-direction: column; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 12px; min-width: 0; }
+        .chat-header-bar { padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #0b0f19; border-radius: 14px; }
         
         .msg-wrapper { display: flex; width: 100%; }
         .msg-wrapper.sent { justify-content: flex-end; }
         .msg-wrapper.received { justify-content: flex-start; }
-        .insta-bubble { max-width: 68%; padding: 10px 14px; border-radius: 16px; font-size: 0.95em; word-break: break-word; }
+        .insta-bubble { max-width: 78%; padding: 10px 14px; border-radius: 16px; font-size: 0.95em; word-break: break-word; }
         .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; }
         .received .insta-bubble { background: #1e293b; color: #f1f5f9; }
         .burn-bubble { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important; border: 1px dashed #fca5a5; cursor: pointer; }
 
-        .input-bar { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-        .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 14px; color: #fff; outline: none; height: 45px; resize: none; font-size: 0.95em; }
-        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 16px; height: 45px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        .attach-btn, .mic-btn, .burn-toggle-btn { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2em; transition: 0.2s; }
+        .input-bar { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+        .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 12px; color: #fff; outline: none; height: 42px; resize: none; font-size: 0.95em; }
+        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 14px; height: 42px; border-radius: 12px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+        .attach-btn, .mic-btn, .burn-toggle-btn { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.1em; flex-shrink: 0; transition: 0.2s; }
         .burn-toggle-btn.active { background: #dc2626; color: #fff; border-color: #f87171; }
         .mic-btn.recording { background: #ef4444; color: #fff; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
-        .st-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; }
-        .st-tab-btn { background: rgba(30, 41, 59, 0.5); color: #94a3b8; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .st-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; overflow-x: auto; }
+        .st-tab-btn { background: rgba(30, 41, 59, 0.5); color: #94a3b8; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; white-space: nowrap; font-size: 0.85em; }
         .st-tab-btn.active { background: #2563eb; color: #fff; }
         .st-tab-content { display: none; }
         .st-tab-content.active { display: block; }
 
-        .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
-        .card-box { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
+        .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .card-box { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 18px; text-align: center; flex: 1; }
         
-        .modal-overlay-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; }
+        .modal-overlay-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; padding: 15px; }
         .modal-overlay-bg.active { display: flex; }
-        .profile-modal { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; width: 340px; padding: 30px; text-align: center; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
-        .profile-modal .close-btn { position: absolute; top: 15px; right: 20px; background: transparent; border: none; color: #94a3b8; font-size: 1.5em; cursor: pointer; }
-        .modal-avatar-lg { width: 110px; height: 110px; border-radius: 50%; border: 3px solid #3b82f6; margin: 0 auto 15px auto; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 45px; }
+        .profile-modal { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; width: 100%; max-width: 340px; padding: 25px; text-align: center; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .profile-modal .close-btn { position: absolute; top: 12px; right: 15px; background: transparent; border: none; color: #94a3b8; font-size: 1.4em; cursor: pointer; }
+        .modal-avatar-lg { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #3b82f6; margin: 0 auto 12px auto; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 40px; }
         .modal-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* موبايل وتصميم متجاوب بالكامل */
+        @media (max-width: 768px) {
+            body { flex-direction: column-reverse; }
+            .sidebar { width: 100%; height: 65px; flex-direction: row; padding: 6px 10px; justify-content: space-around; align-items: center; border-right: none; border-top: 1px solid rgba(255,255,255,0.08); gap: 4px; }
+            .sidebar-profile, .sidebar hr { display: none; }
+            .nav-btn { flex: 1; padding: 8px 4px; font-size: 0.7em; text-align: center; justify-content: center; border-radius: 8px; margin-bottom: 0; flex-direction: column; gap: 2px; }
+            
+            .main-container { height: calc(100vh - 65px); height: calc(100dvh - 65px); }
+            .chat-container-layout { flex-direction: column; height: calc(100dvh - 90px); gap: 8px; }
+            .friends-sidebar { width: 100%; height: 110px; flex-shrink: 0; padding: 8px; }
+            #chat-friends-list { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; height: calc(100% - 25px); }
+            .friend-item { min-width: 140px; margin-bottom: 0; flex-direction: column; text-align: center; justify-content: center; padding: 6px; }
+            .chat-main-area { height: 100%; padding: 10px; }
+            .page-content { padding: 12px; }
+            .user-card { flex-direction: column; align-items: stretch; text-align: center; }
+            .user-card > div:first-child { justify-content: center; }
+            .user-card > div:last-child { justify-content: center; }
+        }
     </style>
 </head>
 <body>
@@ -127,54 +145,54 @@
             <p id="user-status-disp" style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"Available"</p>
         </div>
         <hr style="border:0.5px solid rgba(255,255,255,0.08); margin: 10px 0;">
-        <button class="nav-btn active" onclick="showPage('dashboard', this)">🏠 Dashboard</button>
-        <button class="nav-btn" onclick="showPage('messages', this)">💬 Messages</button>
-        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends</button>
-        <button class="nav-btn" onclick="showPage('profile', this)">👤 Profile Settings</button>
-        <button class="nav-btn" onclick="showPage('blocklist', this)">🚫 Blocklist</button>
-        <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
+        <button class="nav-btn active" onclick="showPage('dashboard', this)">🏠 <span>Dashboard</span></button>
+        <button class="nav-btn" onclick="showPage('messages', this)">💬 <span>Messages</span></button>
+        <button class="nav-btn" onclick="showPage('friends', this)">👥 <span>Friends</span></button>
+        <button class="nav-btn" onclick="showPage('profile', this)">👤 <span>Profile</span></button>
+        <button class="nav-btn" onclick="showPage('blocklist', this)">🚫 <span>Blocklist</span></button>
+        <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 <span>Logout</span></button>
     </div>
 
     <div class="main-container">
 
         <div class="page-content active" id="page-dashboard">
             <h3>📊 System Overview</h3>
-            <div style="display:flex; gap:15px; margin-top:15px;">
-                <div class="card-box"><h2 style="color:#60a5fa; font-size:2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
-                <div class="card-box"><h2 style="color:#f59e0b; font-size:2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
-                <div class="card-box"><h2 style="color:#10b981; font-size:2em;">⚡</h2><small style="color:#94a3b8;">Cloud Database Active</small></div>
+            <div style="display:flex; gap:12px; margin-top:15px; flex-wrap:wrap;">
+                <div class="card-box"><h2 style="color:#60a5fa; font-size:1.8em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
+                <div class="card-box"><h2 style="color:#f59e0b; font-size:1.8em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
+                <div class="card-box"><h2 style="color:#10b981; font-size:1.8em;">⚡</h2><small style="color:#94a3b8;">Cloud Active</small></div>
             </div>
         </div>
 
         <div class="page-content" id="page-messages">
             <div class="chat-container-layout">
                 <div class="friends-sidebar">
-                    <h4 style="margin-bottom:12px; color:#60a5fa;">💬 قائمة الأصدقاء</h4>
+                    <h4 style="margin-bottom:10px; color:#60a5fa; font-size:0.9em;">💬 الأصدقاء</h4>
                     <div id="chat-friends-list"></div>
                 </div>
                 <div class="chat-main-area">
                     <div class="chat-header-bar">
-                        <div><strong id="target-disp-name">اختر صديقاً من القائمة على اليسار لبدء المحادثة</strong></div>
-                        <span style="background:#059669; color:#fff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 مشفر</span>
+                        <div><strong id="target-disp-name" style="font-size:0.9em;">اختر صديقاً للمحادثة</strong></div>
+                        <span style="background:#059669; color:#fff; padding:3px 8px; border-radius:12px; font-size:0.7em; font-weight:bold;">🔒 مشفر</span>
                     </div>
                     <div class="chat-message-container" id="chat-box"></div>
                     <div id="file-preview-name" style="font-size:0.8em; color:#60a5fa; margin-top:4px; display:none;"></div>
                     <div class="input-bar">
-                        <button class="burn-toggle-btn" id="burn-btn" title="رسالة ذاتية الاحتراق (تختفي بعد القراءة)" onclick="toggleBurnMode()">🔥</button>
+                        <button class="burn-toggle-btn" id="burn-btn" title="حرق تلقائي" onclick="toggleBurnMode()">🔥</button>
                         <button class="mic-btn" id="mic-btn" title="تسجيل صوتي" onclick="toggleVoiceRecording()">🎤</button>
-                        <label class="attach-btn" for="file-input" title="إرفاق ملف">📎</label>
+                        <label class="attach-btn" for="file-input" title="ملف">📎</label>
                         <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
                         <textarea id="msg-input" placeholder="اكتب رسالة..." onkeydown="handleEnterKey(event)"></textarea>
-                        <button class="send-btn" onclick="sendMsg()">إرسال 🚀</button>
+                        <button class="send-btn" onclick="sendMsg()">إرسال</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="page-content" id="page-friends">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h3>👥 Friend Management</h3>
-                <button class="auth-btn" style="width:auto; padding:6px 14px;" onclick="refreshUserData()">🔄 تحديث البيانات</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="font-size:1.1em;">👥 Friend Management</h3>
+                <button class="auth-btn" style="width:auto; padding:6px 12px; font-size:0.85em;" onclick="refreshUserData()">🔄 تحديث</button>
             </div>
             <div class="st-tabs">
                 <button class="st-tab-btn active" onclick="switchStTab('search', this)">🔍 Search & Add</button>
@@ -191,31 +209,31 @@
 
         <div class="page-content" id="page-profile">
             <h3>👤 Profile Settings</h3>
-            <div style="background:#111827; padding:30px; border-radius:16px; margin-top:15px; max-width: 500px;">
-                <div style="text-align:center; margin-bottom: 25px;">
+            <div style="background:#111827; padding:20px; border-radius:16px; margin-top:12px; max-width: 500px; width: 100%;">
+                <div style="text-align:center; margin-bottom: 20px;">
                     <label for="avatar-upload" style="cursor:pointer; display:inline-block;">
-                        <div class="avatar-circle" id="prof-avatar-preview" style="width:100px; height:100px; font-size:40px; margin:0 auto; border:3px dashed #3b82f6;">👤</div>
-                        <p style="color:#60a5fa; font-size:0.85em; margin-top:10px; font-weight:bold;">تغيير الصورة الشخصية 📷</p>
+                        <div class="avatar-circle" id="prof-avatar-preview" style="width:90px; height:90px; font-size:35px; margin:0 auto; border:3px dashed #3b82f6;">👤</div>
+                        <p style="color:#60a5fa; font-size:0.85em; margin-top:8px; font-weight:bold;">تغيير الصورة 📷</p>
                     </label>
                     <input type="file" id="avatar-upload" style="display:none;" accept="image/*" onchange="handleAvatarUpload(this)">
                 </div>
 
-                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الاسم المعروض (Display Name)</label>
-                <input type="text" id="prof-display-name" placeholder="اسمك الذي سيظهر للآخرين" style="width:100%; padding:12px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:15px; margin-top:5px;">
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الاسم المعروض</label>
+                <input type="text" id="prof-display-name" placeholder="اسمك الذي سيظهر" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:12px; margin-top:4px;">
                 
-                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الحالة (Status)</label>
-                <input type="text" id="prof-status" placeholder="متوفر، مشغول..." style="width:100%; padding:12px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:15px; margin-top:5px;">
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الحالة</label>
+                <input type="text" id="prof-status" placeholder="متوفر..." style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:12px; margin-top:4px;">
                 
-                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">النبذة التعريفيّة (Bio)</label>
-                <textarea id="prof-bio" placeholder="اكتب شيئاً عن نفسك..." style="width:100%; padding:12px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:20px; margin-top:5px; height: 80px; resize:none;"></textarea>
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">النبذة التعريفيّة</label>
+                <textarea id="prof-bio" placeholder="اكتب شيئاً عن نفسك..." style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:16px; margin-top:4px; height: 70px; resize:none;"></textarea>
                 
-                <button class="auth-btn" style="padding:14px; font-size:1.05em;" onclick="saveProfile()">حفظ التعديلات 💾</button>
+                <button class="auth-btn" style="padding:12px;" onclick="saveProfile()">حفظ التعديلات 💾</button>
             </div>
         </div>
 
         <div class="page-content" id="page-blocklist">
             <h3>🚫 Blocklist Management</h3>
-            <div id="blocklist-container" style="margin-top:15px;"></div>
+            <div id="blocklist-container" style="margin-top:12px;"></div>
         </div>
 
     </div>
@@ -437,7 +455,7 @@
             box.innerHTML = "";
             const flist = userData.friends ? [...new Set(userData.friends)] : [];
             if(flist.length === 0) {
-                box.innerHTML = "<p style='color:#94a3b8; font-size:0.85em;'>لا يوجد أصدقاء بعد.</p>";
+                box.innerHTML = "<p style='color:#94a3b8; font-size:0.8em; text-align:center; padding:10px;'>لا يوجد أصدقاء.</p>";
             } else {
                 flist.forEach(f => {
                     const activeCls = (selectedChatFriend === f) ? "active" : "";
@@ -445,7 +463,7 @@
                     box.innerHTML += `
                     <div class="friend-item ${activeCls}" onclick="openChatWith('${f}', this)">
                         <div class="small-avatar">${u.avatarHtml}</div>
-                        <strong>${u.name}</strong>
+                        <strong style="font-size:0.85em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;">${u.name}</strong>
                     </div>`;
                 });
             }
@@ -457,10 +475,10 @@
             if(el) el.classList.add('active');
 
             const u = getUserDetails(friendName);
-            document.getElementById('target-disp-name').innerHTML = `محادثة مع: ${u.name} <button class="auth-btn" style="padding:2px 8px; width:auto; font-size:0.7em; margin-right:10px; background:#1e293b;" onclick="showProfileCard('${friendName}')">👁️ بروفايل</button>`;
+            document.getElementById('target-disp-name').innerHTML = `${u.name} <button class="auth-btn" style="padding:2px 6px; width:auto; font-size:0.65em; margin-right:6px; background:#1e293b;" onclick="showProfileCard('${friendName}')">👁️</button>`;
             
             const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML = "<p style='color:#94a3b8;'>جاري تحميل السجل...</p>";
+            chatBox.innerHTML = "<p style='color:#94a3b8; text-align:center;'>جاري تحميل السجل...</p>";
 
             try {
                 const res = await fetch(`/api/get_messages/${userData.username}/${friendName}`);
@@ -474,10 +492,10 @@
                         appendParsedBubble(m.id, m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن');
                     });
                 } else {
-                    chatBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد رسائل سابقة. ابدأ المحادثة الآن!</p>";
+                    chatBox.innerHTML = "<p style='color:#94a3b8; text-align:center;'>لا توجد رسائل سابقة.</p>";
                 }
             } catch(e) {
-                chatBox.innerHTML = "<p style='color:#ef4444;'>خطأ في الاتصال.</p>";
+                chatBox.innerHTML = "<p style='color:#ef4444; text-align:center;'>خطأ في الاتصال.</p>";
             }
         }
 
@@ -493,10 +511,10 @@
             const btn = document.getElementById('burn-btn');
             if(isBurnMode) {
                 btn.classList.add('active');
-                btn.title = "وضع الاحتراق مفعّل (الرسالة ستختفي بمجرد رؤيتها)";
+                btn.title = "وضع الاحتراق مفعّل";
             } else {
                 btn.classList.remove('active');
-                btn.title = "رسالة ذاتية الاحتراق";
+                btn.title = "حرق تلقائي";
             }
         }
 
@@ -528,14 +546,12 @@
 
                     mediaRecorder.start();
                     micBtn.classList.add('recording');
-                    micBtn.title = "جارٍ التسجيل... انقر للإيقاف والإرسال";
                 } catch (err) {
-                    alert("لا يمكن الوصول إلى الميكروفون!");
+                    alert("تعذر الوصول إلى الميكروفون!");
                 }
             } else {
                 mediaRecorder.stop();
                 micBtn.classList.remove('recording');
-                micBtn.title = "تسجيل صوتي";
             }
         }
 
@@ -622,11 +638,11 @@
                 const fileName = fileNameType[0] || "file";
 
                 if (fileType.startsWith("image/")) {
-                    fileHtml = `<br><img src="${fileBase64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
+                    fileHtml = `<br><img src="${fileBase64}" style="max-width:180px; border-radius:8px; margin-top:6px; display:block;">`;
                 } else if (fileType.startsWith("audio/")) {
-                    fileHtml = `<br><audio controls src="${fileBase64}" style="width:220px; margin-top:6px;"></audio>`;
+                    fileHtml = `<br><audio controls src="${fileBase64}" style="width:190px; margin-top:6px;"></audio>`;
                 } else {
-                    fileHtml = `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${fileName}</a>`;
+                    fileHtml = `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.8em; display:inline-block; margin-top:6px;">📄 تنزيل ${fileName}</a>`;
                 }
             }
 
@@ -641,7 +657,7 @@
             if (isBurn) {
                 bubbleClass += " burn-bubble";
                 if (!isMine) {
-                    wrapper.innerHTML = `<div class="${bubbleClass}" onclick="burnAndReadMessage(this, '${msgId}', \`${textPart}\`, \`${fileHtml}\`)">🔥 رسالة ذاتية الاحتراق (انقر للفتح)</div>`;
+                    wrapper.innerHTML = `<div class="${bubbleClass}" onclick="burnAndReadMessage(this, '${msgId}', \`${textPart}\`, \`${fileHtml}\`)">🔥 رسالة محترقة (انقر للعرض)</div>`;
                     chatBox.appendChild(wrapper);
                     chatBox.scrollTop = chatBox.scrollHeight;
                     return;
@@ -650,13 +666,13 @@
                 }
             }
 
-            wrapper.innerHTML = `<div class="${bubbleClass}">${textPart}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
+            wrapper.innerHTML = `<div class="${bubbleClass}">${textPart}${fileHtml}<span style="font-size:0.6em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         async function burnAndReadMessage(element, msgId, textPart, fileHtml) {
-            element.innerHTML = `${textPart}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px; color:#fca5a5;">تم حرق الرسالة 💥</span>`;
+            element.innerHTML = `${textPart}${fileHtml}<span style="font-size:0.6em; display:block; opacity:0.7; text-align:right; margin-top:4px; color:#fca5a5;">تم الحرق 💥</span>`;
             element.style.cursor = "default";
             element.onclick = null;
 
@@ -686,21 +702,21 @@
                     const isPending = (userData.friend_requests || []).includes(u.username);
                     const ud = getUserDetails(u.username);
 
-                    let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
-                    if(isFriend) actionBtn = `<span style="color:#10b981; font-weight:bold;">صديق ✅</span>`;
-                    else if(isPending) actionBtn = `<span style="color:#f59e0b; font-weight:bold;">معلق ⏳</span>`;
+                    let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 10px; font-size:0.85em;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
+                    if(isFriend) actionBtn = `<span style="color:#10b981; font-weight:bold; font-size:0.85em;">صديق ✅</span>`;
+                    else if(isPending) actionBtn = `<span style="color:#f59e0b; font-weight:bold; font-size:0.85em;">معلق ⏳</span>`;
 
                     box.innerHTML += `
                     <div class="user-card">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <div class="small-avatar" style="width:45px; height:45px;">${ud.avatarHtml}</div>
-                            <div>
-                                <strong style="color:#f8fafc;">${ud.name}</strong>
-                                <span style="color:#60a5fa; font-size:0.88em; margin-left:6px;">(@${u.username})</span>
+                        <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
+                            <div class="small-avatar" style="width:38px; height:38px;">${ud.avatarHtml}</div>
+                            <div style="overflow:hidden; text-align:right;">
+                                <strong style="color:#f8fafc; font-size:0.9em; display:block; overflow:hidden; text-overflow:ellipsis;">${ud.name}</strong>
+                                <span style="color:#60a5fa; font-size:0.75em;">(@${u.username})</span>
                             </div>
                         </div>
-                        <div style="display:flex; gap:5px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#1e293b;" onclick="showProfileCard('${u.username}')">👁️ بروفايل</button>
+                        <div style="display:flex; gap:4px; flex-shrink:0;">
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#1e293b; font-size:0.8em;" onclick="showProfileCard('${u.username}')">👁️</button>
                             ${actionBtn}
                         </div>
                     </div>`;
@@ -727,21 +743,21 @@
             const myfBox = document.getElementById('my-friends-tab-list');
             myfBox.innerHTML = "";
             const flist = userData.friends ? [...new Set(userData.friends)] : [];
-            if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد أصدقاء حالياً.</p>";
+            if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>لا يوجد أصدقاء.</p>";
             else {
                 flist.forEach(f => {
                     const ud = getUserDetails(f);
                     myfBox.innerHTML += `
                     <div class="user-card">
-                        <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
                             <div class="small-avatar">${ud.avatarHtml}</div>
-                            <strong style="color:#f8fafc;">${ud.name}</strong>
+                            <strong style="color:#f8fafc; font-size:0.9em;">${ud.name}</strong>
                         </div>
-                        <div style="display:flex; gap:6px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#1e293b;" title="بروفايل" onclick="showProfileCard('${f}')">👁️</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px;" title="محادثة" onclick="startChatFromFriends('${f}')">💬</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" title="حذف" onclick="unfriend('${f}')">🗑️</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" title="حظر" onclick="blockUser('${f}')">🚫</button>
+                        <div style="display:flex; gap:4px;">
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#1e293b; font-size:0.8em;" onclick="showProfileCard('${f}')">👁️</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; font-size:0.8em;" onclick="startChatFromFriends('${f}')">💬</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#ef4444; font-size:0.8em;" onclick="unfriend('${f}')">🗑️</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#ef4444; font-size:0.8em;" onclick="blockUser('${f}')">🚫</button>
                         </div>
                     </div>`;
                 });
@@ -750,19 +766,19 @@
             const reqBox = document.getElementById('requests-tab-list');
             reqBox.innerHTML = "";
             const reqs = userData.friend_requests ? [...new Set(userData.friend_requests)] : [];
-            if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد طلبات معلقة.</p>";
+            if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>لا توجد طلبات معلقة.</p>";
             else {
                 reqs.forEach(r => {
                     const ud = getUserDetails(r);
                     reqBox.innerHTML += `
                     <div class="user-card">
-                        <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
                             <div class="small-avatar">${ud.avatarHtml}</div>
-                            <strong style="color:#f8fafc;">${ud.name}</strong>
+                            <strong style="color:#f8fafc; font-size:0.9em;">${ud.name}</strong>
                         </div>
-                        <div style="display:flex; gap:6px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="acceptReq('${r}')">✅ قبول</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="declineReq('${r}')">❌ رفض</button>
+                        <div style="display:flex; gap:4px;">
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#059669; font-size:0.8em;" onclick="acceptReq('${r}')">✅ قبول</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#ef4444; font-size:0.8em;" onclick="declineReq('${r}')">❌ رفض</button>
                         </div>
                     </div>`;
                 });
@@ -839,17 +855,17 @@
             if(!bBox) return;
             bBox.innerHTML = "";
             const blist = userData.blocked ? [...new Set(userData.blocked)] : [];
-            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد مستخدمين محظورين.</p>";
+            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>لا يوجد محظورين.</p>";
             else {
                 blist.forEach(b => {
                     const ud = getUserDetails(b);
                     bBox.innerHTML += `
                     <div class="user-card">
-                        <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
                             <div class="small-avatar">${ud.avatarHtml}</div>
-                            <strong style="color:#f8fafc;">${ud.name}</strong>
+                            <strong style="color:#f8fafc; font-size:0.9em;">${ud.name}</strong>
                         </div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="unblock('${b}')">✅ فك الحظر</button>
+                        <button class="auth-btn" style="width:auto; padding:6px 10px; background:#059669; font-size:0.8em;" onclick="unblock('${b}')">✅ فك الحظر</button>
                     </div>`;
                 });
             }
