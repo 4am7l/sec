@@ -27,7 +27,6 @@ try:
 except Exception:
     supabase = None
 
-# مفتاح تشفير ثابت لا يتغير حتى لو أعاد السيرفر تشغيل نفسه
 FIXED_SECRET_KEY = os.environ.get("FERNET_KEY", b'V0h0a1F4d1Z5T3p5Um92TDB3SFB5TG9rV3B5d1N2YlE=')
 if isinstance(FIXED_SECRET_KEY, str):
     FIXED_SECRET_KEY = FIXED_SECRET_KEY.encode()
@@ -35,7 +34,6 @@ if isinstance(FIXED_SECRET_KEY, str):
 try:
     cipher = Fernet(FIXED_SECRET_KEY)
 except Exception:
-    # مفتاح احتياطي ثابت في حال خطأ التنسيق
     fallback_key = Fernet.generate_key()
     cipher = Fernet(fallback_key)
 
@@ -148,7 +146,6 @@ async def get_messages_api(u1: str, u2: str):
                 else:
                     m['content'] = raw_content
             except Exception:
-                # إذا فشل فك التشفير بسبب اختلاف مفتاح قديم، نعرضه كما هو بدل الانهيار
                 pass
             decrypted_msgs.append(m)
         return {"status": "success", "messages": decrypted_msgs}
@@ -193,6 +190,7 @@ async def send_message_http(data: dict):
         "time": "الآن"
     }
     
+    # بث الرسالة للطرفين عبر الـ WebSocket بشكل فوري
     await manager.send_to_user(recipient, msg_out)
     await manager.send_to_user(sender, msg_out)
 
@@ -449,10 +447,12 @@ FULL_UI_HTML = """
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${userData.username}`);
             ws.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
-                    appendBubble(data.sender, data.content, data.time, data.file);
-                }
+                try {
+                    const data = JSON.parse(event.data);
+                    if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
+                        appendBubble(data.sender, data.content, data.time, data.file);
+                    }
+                } catch(err) {}
             };
             ws.onclose = function() {
                 setTimeout(connectWebSocket, 2000);
@@ -576,32 +576,27 @@ FULL_UI_HTML = """
                 file: attachedFileData
             };
 
-            // عرض الرسالة محلياً فوراً عند الإرسال
+            // عرض الرسالة مباشرة على الشاشة فوراً
             appendBubble(userData.username, msg, 'الآن', attachedFileData);
+            input.value = "";
+            const currentFile = attachedFileData;
+            attachedFileData = null;
+            document.getElementById('file-preview-name').style.display = 'none';
+            document.getElementById('file-input').value = "";
 
             try {
-                const res = await fetch('/api/send_message_http', {
+                await fetch('/api/send_message_http', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                const data = await res.json();
-                if(!res.ok) {
-                    alert(data.detail || "فشل إرسال الرسالة");
-                }
-            } catch(e) {
-                alert("خطأ في الاتصال أثناء إرسال الرسالة");
-            }
-
-            input.value = "";
-            attachedFileData = null;
-            document.getElementById('file-preview-name').style.display = 'none';
-            document.getElementById('file-input').value = "";
+            } catch(e) {}
         }
 
         function appendBubble(sender, content, time, file) {
             const isMine = (sender === userData.username);
             const chatBox = document.getElementById("chat-box");
+            if (!chatBox) return;
             const wrapper = document.createElement("div");
             wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
 
