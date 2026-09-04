@@ -78,13 +78,11 @@
         .modal-avatar-lg { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #3b82f6; margin: 0 auto 12px auto; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 40px; }
         .modal-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
 
-        /* موبايل وتصميم متجاوب بالكامل */
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; }
             .sidebar { width: 100%; height: 65px; flex-direction: row; padding: 6px 10px; justify-content: space-around; align-items: center; border-right: none; border-top: 1px solid rgba(255,255,255,0.08); gap: 4px; }
             .sidebar-profile, .sidebar hr { display: none; }
             .nav-btn { flex: 1; padding: 8px 4px; font-size: 0.7em; text-align: center; justify-content: center; border-radius: 8px; margin-bottom: 0; flex-direction: column; gap: 2px; }
-            
             .main-container { height: calc(100vh - 65px); height: calc(100dvh - 65px); }
             .chat-container-layout { flex-direction: column; height: calc(100dvh - 90px); gap: 8px; }
             .friends-sidebar { width: 100%; height: 110px; flex-shrink: 0; padding: 8px; }
@@ -100,7 +98,6 @@
 </head>
 <body>
 
-    <!-- Auth Modal -->
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
             <h1>⚡ CYBER MESSENGER</h1>
@@ -123,7 +120,6 @@
         </div>
     </div>
 
-    <!-- User Profile Modal Card -->
     <div class="modal-overlay-bg" id="user-profile-modal">
         <div class="profile-modal">
             <button class="close-btn" onclick="document.getElementById('user-profile-modal').classList.remove('active')">✖</button>
@@ -248,6 +244,7 @@
         let isBurnMode = false;
         let mediaRecorder = null;
         let audioChunks = [];
+        let processedMsgIds = new Set(); // لتجنب تكرار عرض الرسائل
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -471,6 +468,7 @@
 
         async function openChatWith(friendName, el) {
             selectedChatFriend = friendName;
+            processedMsgIds.clear(); // تفريغ الذاكرة المؤقتة للرسائل عند تغيير الشات
             document.querySelectorAll('.friend-item').forEach(i => i.classList.remove('active'));
             if(el) el.classList.add('active');
 
@@ -587,17 +585,6 @@
                 is_burn: isBurnMode
             };
 
-            let localContent = msg;
-            let tempFile = attachedFileData;
-            let tempBurn = isBurnMode;
-
-            if(tempFile) {
-                localContent += `\n[FILE:${tempFile.name}:${tempFile.type}]${tempFile.base64}`;
-            }
-            if(tempBurn) {
-                localContent = `[BURN]` + localContent;
-            }
-
             input.value = "";
             attachedFileData = null;
             isBurnMode = false;
@@ -606,19 +593,19 @@
             document.getElementById('file-input').value = "";
 
             try {
-                const res = await fetch('/api/send_message_http', {
+                await fetch('/api/send_message_http', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                const data = await res.json();
-                if(data.status === "success") {
-                    appendParsedBubble(data.message.id, data.message.sender, data.message.content, 'الآن');
-                }
+                // ملاحظة: لا نعرض الرسالة هنا محلياً، نترك الـ WebSocket يوزعها ويستقبلها مرة واحدة فقط لمنع التكرار
             } catch(e) {}
         }
 
         function appendParsedBubble(msgId, sender, rawContent, time) {
+            if (msgId && processedMsgIds.has(msgId)) return; // إذا تم عرض هذه الرسالة من قبل، لا تعرضها مرة أخرى
+            if (msgId) processedMsgIds.add(msgId);
+
             let textPart = rawContent || '';
             let fileHtml = '';
             let isBurn = false;
