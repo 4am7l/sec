@@ -71,7 +71,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- APIS FOR PROFILE & FRIENDS ---
+# --- BACKEND APIS ---
 @app.post("/api/register")
 async def register_user(data: dict):
     if not supabase:
@@ -110,12 +110,19 @@ async def register_user(data: dict):
 @app.post("/api/login")
 async def login_user(data: dict):
     if not supabase:
-        raise HTTPException(status_code=500, detail="خطأ في الداتابيز")
+        raise HTTPException(status_code=500, detail="خطأ في الاتصال بقاعدة البيانات")
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     res = supabase.table("users").select("*").eq("username", username).execute()
     if not res.data or res.data[0]["password"] != hash_data(password):
-        raise HTTPException(status_code=401, detail="معلومات الدخول غير صحيحة")
+        raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة السر غير صحيحة")
+    return {"status": "success", "user": res.data[0]}
+
+@app.get("/api/get_user/{username}")
+async def get_user_data(username: str):
+    res = supabase.table("users").select("*").eq("username", username).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
     return {"status": "success", "user": res.data[0]}
 
 @app.post("/api/update_profile")
@@ -134,11 +141,10 @@ async def update_profile(data: dict):
     res = supabase.table("users").select("*").eq("username", username).execute()
     return {"status": "success", "user": res.data[0]}
 
-@app.post("/api/search_user")
-async def search_user(data: dict):
-    query = data.get("query", "").strip()
+@app.get("/api/search_users")
+async def search_users(q: str):
     res = supabase.table("users").select("username, user_id, bio, status_text, avatar").execute()
-    matches = [u for u in res.data if query.lower() in u["username"].lower() or query.upper() in u["user_id"]]
+    matches = [u for u in res.data if q.lower() in u["username"].lower() or q.upper() in u.get("user_id", "")]
     return {"status": "success", "users": matches}
 
 @app.post("/api/add_friend")
@@ -146,19 +152,14 @@ async def add_friend(data: dict):
     username = data.get("username")
     friend_name = data.get("friend_name")
     
-    # Get target user
-    res = supabase.table("users").select("friends").eq("username", friend_name).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
-    
-    # Simple direct add
-    u1 = supabase.table("users").select("friends").eq("username", username).execute().data[0]
-    f1 = u1.get("friends") or []
+    u1_data = supabase.table("users").select("friends").eq("username", username).execute().data[0]
+    f1 = u1_data.get("friends") or []
     if friend_name not in f1:
         f1.append(friend_name)
         supabase.table("users").update({"friends": f1}).eq("username", username).execute()
         
-    f2 = res.data[0].get("friends") or []
+    u2_data = supabase.table("users").select("friends").eq("username", friend_name).execute().data[0]
+    f2 = u2_data.get("friends") or []
     if username not in f2:
         f2.append(username)
         supabase.table("users").update({"friends": f2}).eq("username", friend_name).execute()
@@ -205,6 +206,7 @@ FULL_UI_HTML = """
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
+        .card-box { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
         .form-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 20px; border-radius: 16px; margin-top: 15px; }
         .form-card input, .form-card textarea { width: 100%; padding: 10px; background: #090d16; border: 1px solid #334155; border-radius: 8px; color: #fff; margin-bottom: 10px; outline: none; }
         .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
@@ -267,7 +269,10 @@ FULL_UI_HTML = """
 
         <div class="page-content active" id="page-dashboard">
             <h3>📊 Dashboard Overview</h3>
-            <p style="color:#94a3b8; margin-top:10px;">أهلاً بك في تطبيق Cyber Messenger الفوري.</p>
+            <div style="display:flex; gap:15px; margin-top:15px;">
+                <div class="card-box"><h2 style="color:#60a5fa; font-size:2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
+                <div class="card-box"><h2 style="color:#10b981; font-size:2em;">⚡</h2><small style="color:#94a3b8;">WebSocket Active</small></div>
+            </div>
         </div>
 
         <div class="page-content" id="page-messages">
@@ -283,26 +288,24 @@ FULL_UI_HTML = """
             </div>
         </div>
 
-        <!-- PROFILE CUSTOMIZATION -->
         <div class="page-content" id="page-profile">
             <h3>👤 Profile Customization</h3>
             <div class="form-card">
-                <label style="font-size:0.85em; color:#94a3b8;">Custom Status Message</label>
-                <input type="text" id="prof-status" placeholder="Status Message...">
-                <label style="font-size:0.85em; color:#94a3b8;">Bio (About Me)</label>
-                <textarea id="prof-bio" placeholder="Write something..."></textarea>
+                <label style="font-size:0.85em; color:#94a3b8;">Status Message</label>
+                <input type="text" id="prof-status">
+                <label style="font-size:0.85em; color:#94a3b8;">About Me (Bio)</label>
+                <textarea id="prof-bio"></textarea>
                 <label style="font-size:0.85em; color:#94a3b8;">Avatar URL (Image Link)</label>
-                <input type="text" id="prof-avatar" placeholder="https://...">
-                <button class="auth-btn" style="width:100%;" onclick="saveProfile()">Save Changes 💾</button>
+                <input type="text" id="prof-avatar">
+                <button class="auth-btn" style="width:100%;" onclick="saveProfile()">Save Profile 💾</button>
             </div>
         </div>
 
-        <!-- FRIENDS MANAGEMENT -->
         <div class="page-content" id="page-friends">
             <h3>👥 Friend Management</h3>
             <div class="form-card">
-                <input type="text" id="friend-search-q" placeholder="Search by Username or ID (#A123)...">
-                <button class="auth-btn" onclick="searchFriends()">Search 🔍</button>
+                <input type="text" id="friend-search-q" placeholder="Search by Username or Permanent ID (#A123)...">
+                <button class="auth-btn" style="width:100%; margin-top:5px;" onclick="searchFriends()">Search Users 🔍</button>
             </div>
             <div id="search-results" style="margin-top:15px;"></div>
             
@@ -365,7 +368,17 @@ FULL_UI_HTML = """
                 const data = JSON.parse(event.data);
                 appendBubble(data.sender, data.content, data.time);
             };
-            loadFriendsList();
+            refreshUserData();
+        }
+
+        async function refreshUserData() {
+            const res = await fetch(`/api/get_user/${userData.username}`);
+            const data = await res.json();
+            if(res.ok) {
+                userData = data.user;
+                updateUIProfile();
+                loadFriendsList();
+            }
         }
 
         function updateUIProfile() {
@@ -375,6 +388,9 @@ FULL_UI_HTML = """
             document.getElementById('prof-status').value = userData.status_text || '';
             document.getElementById('prof-bio').value = userData.bio || '';
             document.getElementById('prof-avatar').value = userData.avatar || '';
+
+            const flist = userData.friends || [];
+            document.getElementById('dash-friends-count').innerText = flist.length;
 
             if(userData.avatar) {
                 document.getElementById('user-avatar-disp').innerHTML = `<img src="${userData.avatar}">`;
@@ -397,17 +413,14 @@ FULL_UI_HTML = """
             if(res.ok) {
                 userData = data.user;
                 updateUIProfile();
-                alert("Profile Updated Successfully!");
+                alert("Profile Saved!");
             }
         }
 
         async function searchFriends() {
             const q = document.getElementById('friend-search-q').value.trim();
-            const res = await fetch('/api/search_user', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({query: q})
-            });
+            if(!q) return;
+            const res = await fetch(`/api/search_users?q=${encodeURIComponent(q)}`);
             const data = await res.json();
             const box = document.getElementById('search-results');
             box.innerHTML = "";
@@ -419,7 +432,7 @@ FULL_UI_HTML = """
                             <strong>${u.username}</strong> (${u.user_id})
                             <p style="font-size:0.8em; color:#94a3b8;">${u.bio || ''}</p>
                         </div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="addFriend('${u.username}')">➕ Add</button>
+                        <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="addFriend('${u.username}')">➕ Add Friend</button>
                     </div>`;
                 }
             });
@@ -432,10 +445,8 @@ FULL_UI_HTML = """
                 body: JSON.stringify({username: userData.username, friend_name: fname})
             });
             if(res.ok) {
-                alert("Friend Added!");
-                if(!userData.friends) userData.friends = [];
-                userData.friends.push(fname);
-                loadFriendsList();
+                alert("Friend Added Successfully!");
+                refreshUserData();
             }
         }
 
@@ -450,7 +461,7 @@ FULL_UI_HTML = """
                     box.innerHTML += `
                     <div class="user-card">
                         <div><strong>${f}</strong></div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat</button>
+                        <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat Direct</button>
                     </div>`;
                 });
             }
@@ -474,7 +485,7 @@ FULL_UI_HTML = """
             const target = document.getElementById("target-user-input").value.trim();
             const msg = input.value.trim();
             if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Not Connected");
-            if(!msg || !target) return alert("Select recipient and write message");
+            if(!msg || !target) return alert("Specify recipient & message");
             ws.send(JSON.stringify({ recipient: target, message: msg }));
             input.value = "";
         }
