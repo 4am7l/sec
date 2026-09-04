@@ -88,6 +88,7 @@ async def register_user(data: dict):
         u_id = generate_user_id()
         payload = {
             "username": username,
+            "display_name": username, # الاسم المعروض الافتراضي
             "password": hash_data(password),
             "recovery_key": hash_data(rec_key),
             "role": assigned_role,
@@ -95,7 +96,7 @@ async def register_user(data: dict):
             "avatar": "",
             "status_text": "Available",
             "status_icon": "🟢 Online",
-            "bio": "Hey there! I am using Secure Chat.",
+            "bio": "مرحباً! أنا أستخدم Cyber Messenger.",
             "friends": [],
             "friend_requests": [],
             "nicknames": {},
@@ -126,7 +127,7 @@ async def get_user_data(username: str):
 
 @app.get("/api/get_all_users")
 async def get_all_users_api():
-    res = supabase.table("users").select("username, user_id, bio, status_text, avatar, friend_requests, friends").execute()
+    res = supabase.table("users").select("username, display_name, user_id, bio, status_text, avatar, friend_requests, friends").execute()
     return {"status": "success", "users": res.data}
 
 @app.get("/api/get_messages/{u1}/{u2}")
@@ -227,11 +228,13 @@ FULL_UI_HTML = """
         .auth-form { display: none; }
         .auth-form.active { display: block; }
         .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; }
-        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; }
+        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+        .auth-btn:hover { opacity: 0.9; transform: scale(0.98); }
 
         .sidebar { width: 300px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .sidebar-profile { text-align: center; }
+        .sidebar-profile { text-align: center; margin-bottom: 10px; }
         .avatar-circle { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 30px; margin: 0 auto 10px auto; overflow: hidden; }
+        .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
         
         .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; margin-bottom: 6px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; }
@@ -242,8 +245,10 @@ FULL_UI_HTML = """
 
         .chat-container-layout { flex: 1; display: flex; gap: 15px; height: calc(100vh - 120px); }
         .friends-sidebar { width: 260px; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 15px; overflow-y: auto; }
-        .friend-item { padding: 12px; background: #090d16; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+        .friend-item { padding: 12px; background: #090d16; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 10px;}
         .friend-item:hover, .friend-item.active { background: #2563eb; border-color: #3b82f6; }
+        .small-avatar { width: 35px; height: 35px; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 14px; }
+        .small-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         .chat-main-area { flex: 1; display: flex; flex-direction: column; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px; }
         .chat-header-bar { padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
@@ -269,10 +274,19 @@ FULL_UI_HTML = """
 
         .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
         .card-box { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
+        
+        /* Profile Modal Styles */
+        .modal-overlay-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 10000; align-items: center; justify-content: center; }
+        .modal-overlay-bg.active { display: flex; }
+        .profile-modal { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; width: 340px; padding: 30px; text-align: center; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .profile-modal .close-btn { position: absolute; top: 15px; right: 20px; background: transparent; border: none; color: #94a3b8; font-size: 1.5em; cursor: pointer; }
+        .modal-avatar-lg { width: 110px; height: 110px; border-radius: 50%; border: 3px solid #3b82f6; margin: 0 auto 15px auto; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 45px; }
+        .modal-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
     </style>
 </head>
 <body>
 
+    <!-- Auth Modal -->
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
             <h1>⚡ CYBER MESSENGER</h1>
@@ -291,7 +305,20 @@ FULL_UI_HTML = """
                 <input type="password" id="r_p" placeholder="Password (8+ chars)">
                 <button class="auth-btn" onclick="apiRegister()">CREATE ACCOUNT ✨</button>
             </div>
-            <div id="auth-msg" style="margin-top:15px; font-size:0.85em; font-weight:bold;"></div>
+        </div>
+    </div>
+
+    <!-- User Profile Modal Card -->
+    <div class="modal-overlay-bg" id="user-profile-modal">
+        <div class="profile-modal">
+            <button class="close-btn" onclick="document.getElementById('user-profile-modal').classList.remove('active')">✖</button>
+            <div id="modal-avatar" class="modal-avatar-lg">👤</div>
+            <h2 id="modal-display-name" style="color:#f8fafc; margin-bottom:4px; font-weight:800;">Name</h2>
+            <p id="modal-username" style="color:#60a5fa; font-size:0.9em; margin-bottom:20px; font-family:monospace;">@username</p>
+            <div style="background:#090d16; padding:15px; border-radius:12px; text-align:right; border:1px solid rgba(255,255,255,0.05);">
+                <p style="color:#94a3b8; font-size:0.85em; margin-bottom:6px;"><strong>📝 النبذة التعريفيّة (Bio):</strong></p>
+                <p id="modal-bio" style="color:#e2e8f0; font-size:0.95em; line-height:1.5;">لا توجد نبذة حتى الآن.</p>
+            </div>
         </div>
     </div>
 
@@ -299,15 +326,14 @@ FULL_UI_HTML = """
         <div class="sidebar-profile">
             <div class="avatar-circle" id="user-avatar-disp">👤</div>
             <h3 id="user-name-disp" style="color:#f8fafc; font-weight:700;">User</h3>
+            <p id="user-username-disp" style="color: #94a3b8; font-size: 0.82em; margin-bottom: 6px;">@username</p>
             <p id="user-status-disp" style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"Available"</p>
         </div>
-        <small style="color:#94a3b8;">Your Permanent ID:</small>
-        <div style="background:#090d16; padding:8px; border-radius:8px; font-family:monospace; color:#3b82f6;" id="user-id-disp">#0000</div>
         <hr style="border:0.5px solid rgba(255,255,255,0.08); margin: 10px 0;">
         <button class="nav-btn active" onclick="showPage('dashboard', this)">🏠 Dashboard</button>
         <button class="nav-btn" onclick="showPage('messages', this)">💬 Messages</button>
         <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends</button>
-        <button class="nav-btn" onclick="showPage('profile', this)">👤 Profile</button>
+        <button class="nav-btn" onclick="showPage('profile', this)">👤 Profile Settings</button>
         <button class="nav-btn" onclick="showPage('blocklist', this)">🚫 Blocklist</button>
         <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
     </div>
@@ -325,21 +351,17 @@ FULL_UI_HTML = """
 
         <div class="page-content" id="page-messages">
             <div class="chat-container-layout">
-                
                 <div class="friends-sidebar">
                     <h4 style="margin-bottom:12px; color:#60a5fa;">💬 قائمة الأصدقاء</h4>
                     <div id="chat-friends-list"></div>
                 </div>
-
                 <div class="chat-main-area">
                     <div class="chat-header-bar">
                         <div><strong id="target-disp-name">اختر صديقاً من القائمة على اليسار لبدء المحادثة</strong></div>
                         <span style="background:#059669; color:#fff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 مشفر</span>
                     </div>
-
                     <div class="chat-message-container" id="chat-box"></div>
                     <div id="file-preview-name" style="font-size:0.8em; color:#60a5fa; margin-top:4px; display:none;"></div>
-
                     <div class="input-bar">
                         <label class="attach-btn" for="file-input">📎</label>
                         <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
@@ -347,7 +369,6 @@ FULL_UI_HTML = """
                         <button class="send-btn" onclick="sendMsg()">إرسال 🚀</button>
                     </div>
                 </div>
-
             </div>
         </div>
 
@@ -356,35 +377,42 @@ FULL_UI_HTML = """
                 <h3>👥 Friend Management</h3>
                 <button class="auth-btn" style="width:auto; padding:6px 14px;" onclick="refreshUserData()">🔄 تحديث البيانات</button>
             </div>
-
             <div class="st-tabs">
                 <button class="st-tab-btn active" onclick="switchStTab('search', this)">🔍 Search & Add</button>
                 <button class="st-tab-btn" onclick="switchStTab('myfriends', this)">👥 My Friends</button>
                 <button class="st-tab-btn" onclick="switchStTab('requests', this)">📩 Requests</button>
             </div>
-
             <div class="st-tab-content active" id="tab-search">
-                <input type="text" id="s_query_key" placeholder="Search user by Username or ID (e.g. #A123)" style="width:100%; padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none; margin-bottom:10px;" oninput="searchUsersLive()">
+                <input type="text" id="s_query_key" placeholder="ابحث باسم المستخدم أو الـ ID..." style="width:100%; padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none; margin-bottom:10px;" oninput="searchUsersLive()">
                 <div id="search-results-list"></div>
             </div>
-
-            <div class="st-tab-content" id="tab-myfriends">
-                <div id="my-friends-tab-list"></div>
-            </div>
-
-            <div class="st-tab-content" id="tab-requests">
-                <div id="requests-tab-list"></div>
-            </div>
+            <div class="st-tab-content" id="tab-myfriends"><div id="my-friends-tab-list"></div></div>
+            <div class="st-tab-content" id="tab-requests"><div id="requests-tab-list"></div></div>
         </div>
 
         <div class="page-content" id="page-profile">
-            <h3>👤 Profile Customization</h3>
-            <div style="background:#111827; padding:20px; border-radius:12px; margin-top:15px;">
-                <label style="font-size:0.85em; color:#94a3b8;">Custom Status Message</label>
-                <input type="text" id="prof-status" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:8px; color:#fff; margin-bottom:10px;">
-                <label style="font-size:0.85em; color:#94a3b8;">About Me (Bio)</label>
-                <textarea id="prof-bio" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:8px; color:#fff; margin-bottom:10px;"></textarea>
-                <button class="auth-btn" onclick="saveProfile()">SAVE PROFILE CHANGES 💾</button>
+            <h3>👤 Profile Settings</h3>
+            <div style="background:#111827; padding:30px; border-radius:16px; margin-top:15px; max-width: 500px;">
+                
+                <!-- Avatar Upload Section -->
+                <div style="text-align:center; margin-bottom: 25px;">
+                    <label for="avatar-upload" style="cursor:pointer; display:inline-block;">
+                        <div class="avatar-circle" id="prof-avatar-preview" style="width:100px; height:100px; font-size:40px; margin:0 auto; border:3px dashed #3b82f6;">👤</div>
+                        <p style="color:#60a5fa; font-size:0.85em; margin-top:10px; font-weight:bold;">تغيير الصورة الشخصية 📷</p>
+                    </label>
+                    <input type="file" id="avatar-upload" style="display:none;" accept="image/*" onchange="handleAvatarUpload(this)">
+                </div>
+
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الاسم المعروض (Display Name)</label>
+                <input type="text" id="prof-display-name" placeholder="اسمك الذي سيظهر للآخرين" style="width:100%; padding:12px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:15px; margin-top:5px;">
+                
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الحالة (Status)</label>
+                <input type="text" id="prof-status" placeholder="متوفر، مشغول..." style="width:100%; padding:12px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:15px; margin-top:5px;">
+                
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">النبذة التعريفيّة (Bio)</label>
+                <textarea id="prof-bio" placeholder="اكتب شيئاً عن نفسك..." style="width:100%; padding:12px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:20px; margin-top:5px; height: 80px; resize:none;"></textarea>
+                
+                <button class="auth-btn" style="padding:14px; font-size:1.05em;" onclick="saveProfile()">حفظ التعديلات 💾</button>
             </div>
         </div>
 
@@ -401,6 +429,7 @@ FULL_UI_HTML = """
         let selectedChatFriend = null;
         let allUsersCache = [];
         let attachedFileData = null;
+        let pendingAvatarBase64 = null; // الصورة المرفوعة الجديدة
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -436,7 +465,7 @@ FULL_UI_HTML = """
                 body: JSON.stringify({username: u, password: p})
             });
             const data = await res.json();
-            if(res.ok) alert(`Account created! ID: ${data.user_id} | Key: ${data.recovery_key}`);
+            if(res.ok) alert(`تم التسجيل بنجاح! احتفظ بـ ID: ${data.user_id}`);
             else alert(data.detail);
         }
 
@@ -482,12 +511,35 @@ FULL_UI_HTML = """
             }
         }
 
+        // دالة مساعدة لاستخراج الصورة، الاسم، والـ Bio
+        function getUserDetails(username) {
+            const u = allUsersCache.find(x => x.username === username);
+            if(u) {
+                return {
+                    name: u.display_name || u.username,
+                    avatarHtml: u.avatar ? `<img src="${u.avatar}">` : '👤',
+                    bio: u.bio || 'لا توجد نبذة.',
+                    id: u.user_id
+                };
+            }
+            return { name: username, avatarHtml: '👤', bio: '', id: '' };
+        }
+
         function updateUIProfile() {
-            document.getElementById('user-name-disp').innerText = userData.username;
+            const dispName = userData.display_name || userData.username;
+            document.getElementById('user-name-disp').innerText = dispName;
+            document.getElementById('user-username-disp').innerText = `@${userData.username}`;
             document.getElementById('user-status-disp').innerText = `"${userData.status_text || 'Available'}"`;
             document.getElementById('user-id-disp').innerText = userData.user_id || '#0000';
+            
+            // تحديث الحقول في صفحة الإعدادات
+            document.getElementById('prof-display-name').value = dispName;
             document.getElementById('prof-status').value = userData.status_text || '';
             document.getElementById('prof-bio').value = userData.bio || '';
+
+            const avatarHtml = userData.avatar ? `<img src="${userData.avatar}">` : '👤';
+            document.getElementById('user-avatar-disp').innerHTML = avatarHtml;
+            document.getElementById('prof-avatar-preview').innerHTML = avatarHtml;
 
             const flist = userData.friends || [];
             const rlist = userData.friend_requests || [];
@@ -495,16 +547,64 @@ FULL_UI_HTML = """
             document.getElementById('dash-reqs-count').innerText = rlist.length;
         }
 
+        function handleAvatarUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                pendingAvatarBase64 = e.target.result;
+                document.getElementById('prof-avatar-preview').innerHTML = `<img src="${pendingAvatarBase64}">`;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function saveProfile() {
+            const display_name = document.getElementById('prof-display-name').value.trim() || userData.username;
+            const status_text = document.getElementById('prof-status').value;
+            const bio = document.getElementById('prof-bio').value;
+            
+            let updates = { display_name, status_text, bio };
+            if(pendingAvatarBase64) {
+                updates.avatar = pendingAvatarBase64;
+            }
+
+            const res = await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: updates})
+            });
+            if(res.ok) {
+                alert("تم تحديث البروفايل بنجاح! ✅");
+                pendingAvatarBase64 = null;
+                refreshUserData();
+            }
+        }
+
+        // عرض بطاقة البروفايل لأي مستخدم (الكرت الخارجي)
+        function showProfileCard(targetUsername) {
+            const u = getUserDetails(targetUsername);
+            document.getElementById('modal-avatar').innerHTML = u.avatarHtml;
+            document.getElementById('modal-display-name').innerText = u.name;
+            document.getElementById('modal-username').innerText = `@${targetUsername} (${u.id})`;
+            document.getElementById('modal-bio').innerText = u.bio;
+            document.getElementById('user-profile-modal').classList.add('active');
+        }
+
         function renderChatFriendsSidebar() {
             const box = document.getElementById('chat-friends-list');
             box.innerHTML = "";
             const flist = userData.friends || [];
             if(flist.length === 0) {
-                box.innerHTML = "<p style='color:#94a3b8; font-size:0.85em;'>لا يوجد أصدقاء بعد. أضف أصدقاء من قسم Friends!</p>";
+                box.innerHTML = "<p style='color:#94a3b8; font-size:0.85em;'>لا يوجد أصدقاء بعد.</p>";
             } else {
                 flist.forEach(f => {
                     const activeCls = (selectedChatFriend === f) ? "active" : "";
-                    box.innerHTML += `<div class="friend-item ${activeCls}" onclick="openChatWith('${f}', this)"><strong>👤 ${f}</strong></div>`;
+                    const u = getUserDetails(f);
+                    box.innerHTML += `
+                    <div class="friend-item ${activeCls}" onclick="openChatWith('${f}', this)">
+                        <div class="small-avatar">${u.avatarHtml}</div>
+                        <strong>${u.name}</strong>
+                    </div>`;
                 });
             }
         }
@@ -514,7 +614,8 @@ FULL_UI_HTML = """
             document.querySelectorAll('.friend-item').forEach(i => i.classList.remove('active'));
             if(el) el.classList.add('active');
 
-            document.getElementById('target-disp-name').innerText = `محادثة مباشرة مع: ${friendName}`;
+            const u = getUserDetails(friendName);
+            document.getElementById('target-disp-name').innerHTML = `محادثة مع: ${u.name} <button class="auth-btn" style="padding:2px 8px; width:auto; font-size:0.7em; margin-right:10px; background:#1e293b;" onclick="showProfileCard('${friendName}')">👁️ بروفايل</button>`;
             
             const chatBox = document.getElementById("chat-box");
             chatBox.innerHTML = "<p style='color:#94a3b8;'>جاري تحميل السجل...</p>";
@@ -532,7 +633,7 @@ FULL_UI_HTML = """
                     chatBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد رسائل سابقة. ابدأ المحادثة الآن!</p>";
                 }
             } catch(e) {
-                chatBox.innerHTML = "<p style='color:#ef4444;'>خطأ في الاتصال بالداتابيز.</p>";
+                chatBox.innerHTML = "<p style='color:#ef4444;'>خطأ في الاتصال.</p>";
             }
         }
 
@@ -564,7 +665,7 @@ FULL_UI_HTML = """
             const input = document.getElementById("msg-input");
             const msg = input.value.trim();
 
-            if(!selectedChatFriend) return alert("اختر صديقاً من القائمة على اليسار أولاً!");
+            if(!selectedChatFriend) return alert("اختر صديقاً من القائمة أولاً!");
             if(!msg && !attachedFileData) return;
 
             const payload = {
@@ -574,7 +675,6 @@ FULL_UI_HTML = """
                 file: attachedFileData
             };
 
-            // بناء المحتوى المباشر محلياً بدون إظهار كود الـ Base64 كنص
             let localContent = msg;
             let tempFile = attachedFileData;
 
@@ -594,7 +694,6 @@ FULL_UI_HTML = """
             } catch(e) {}
         }
 
-        // الدالة الموحدة لفصل الوسم [FILE:...] وعرض الصور ب شكل نظيف لدى الطرفين
         function appendParsedBubble(sender, rawContent, time) {
             let textPart = rawContent || '';
             let fileHtml = '';
@@ -640,22 +739,28 @@ FULL_UI_HTML = """
             if(!q) return;
 
             allUsersCache.forEach(u => {
-                if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || u.user_id.toLowerCase().includes(q))) {
+                if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || (u.display_name && u.display_name.toLowerCase().includes(q)) || u.user_id.toLowerCase().includes(q))) {
                     const isFriend = (userData.friends || []).includes(u.username);
                     const isPending = (u.friend_requests || []).includes(userData.username);
+                    const ud = getUserDetails(u.username);
 
-                    let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ Send Request</button>`;
-                    if(isFriend) actionBtn = `<span style="color:#10b981; font-weight:bold;">Friends ✅</span>`;
-                    else if(isPending) actionBtn = `<span style="color:#f59e0b; font-weight:bold;">Pending ⏳</span>`;
+                    let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
+                    if(isFriend) actionBtn = `<span style="color:#10b981; font-weight:bold;">صديق ✅</span>`;
+                    else if(isPending) actionBtn = `<span style="color:#f59e0b; font-weight:bold;">معلق ⏳</span>`;
 
                     box.innerHTML += `
                     <div class="user-card">
-                        <div>
-                            <strong style="color:#f8fafc;">${u.username}</strong>
-                            <span style="color:#60a5fa; font-size:0.88em; margin-left:6px;">(${u.user_id})</span>
-                            <p style="color:#94a3b8; font-size:0.82em; margin:2px 0 0 0;">${u.bio || ''}</p>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div class="small-avatar" style="width:45px; height:45px;">${ud.avatarHtml}</div>
+                            <div>
+                                <strong style="color:#f8fafc;">${ud.name}</strong>
+                                <span style="color:#60a5fa; font-size:0.88em; margin-left:6px;">(@${u.username})</span>
+                            </div>
                         </div>
-                        <div>${actionBtn}</div>
+                        <div style="display:flex; gap:5px;">
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#1e293b;" onclick="showProfileCard('${u.username}')">👁️ بروفايل</button>
+                            ${actionBtn}
+                        </div>
                     </div>`;
                 }
             });
@@ -671,7 +776,7 @@ FULL_UI_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: uname, updates: {friend_requests: reqs}})
             });
-            alert(`تم إرسال طلب صداقة إلى ${uname}!`);
+            alert(`تم إرسال الطلب إلى ${uname}!`);
             refreshUserData();
         }
 
@@ -682,13 +787,17 @@ FULL_UI_HTML = """
             if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد أصدقاء حالياً.</p>";
             else {
                 flist.forEach(f => {
+                    const ud = getUserDetails(f);
                     myfBox.innerHTML += `
                     <div class="user-card">
-                        <div><strong style="color:#f8fafc;">${f}</strong></div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div class="small-avatar">${ud.avatarHtml}</div>
+                            <strong style="color:#f8fafc;">${ud.name}</strong>
+                        </div>
                         <div style="display:flex; gap:6px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChatFromFriends('${f}')">💬 محادثة</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="unfriend('${f}')">🗑️ حذف</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}')">🚫 حظر</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#1e293b;" onclick="showProfileCard('${f}')">👁️</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChatFromFriends('${f}')">💬</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="unfriend('${f}')">🗑️</button>
                         </div>
                     </div>`;
                 });
@@ -700,12 +809,16 @@ FULL_UI_HTML = """
             if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد طلبات معلقة.</p>";
             else {
                 reqs.forEach(r => {
+                    const ud = getUserDetails(r);
                     reqBox.innerHTML += `
                     <div class="user-card">
-                        <div><strong style="color:#f8fafc;">${r}</strong></div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div class="small-avatar">${ud.avatarHtml}</div>
+                            <strong style="color:#f8fafc;">${ud.name}</strong>
+                        </div>
                         <div style="display:flex; gap:6px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="acceptReq('${r}')">ACCEPT ✅</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="declineReq('${r}')">DECLINE ❌</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="acceptReq('${r}')">✅ قبول</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="declineReq('${r}')">❌ رفض</button>
                         </div>
                     </div>`;
                 });
@@ -761,66 +874,12 @@ FULL_UI_HTML = """
             refreshUserData();
         }
 
-        async function blockUser(fUser) {
-            let myB = userData.blocked || [];
-            let myF = (userData.friends || []).filter(x => x !== fUser);
-            if(!myB.includes(fUser)) myB.push(fUser);
-
-            await fetch('/api/update_user', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, updates: {blocked: myB, friends: myF}})
-            });
-            refreshUserData();
-        }
-
-        function renderBlocklist() {
-            const bBox = document.getElementById('blocklist-container');
-            bBox.innerHTML = "";
-            const blist = userData.blocked || [];
-            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد مستخدمين محظورين.</p>";
-            else {
-                blist.forEach(b => {
-                    bBox.innerHTML += `
-                    <div class="user-card">
-                        <div><strong style="color:#f8fafc;">${b}</strong></div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="unblock('${b}')">UNBLOCK ✅</button>
-                    </div>`;
-                });
-            }
-        }
-
-        async function unblock(bUser) {
-            let myB = (userData.blocked || []).filter(x => x !== bUser);
-            await fetch('/api/update_user', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, updates: {blocked: myB}})
-            });
-            refreshUserData();
-        }
-
         function showPage(pageId, btnEl) {
             document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('page-' + pageId).classList.add('active');
             if(btnEl) btnEl.classList.add('active');
             if(pageId === 'friends' || pageId === 'blocklist' || pageId === 'messages') refreshUserData();
-        }
-
-        async function saveProfile() {
-            const status_text = document.getElementById('prof-status').value;
-            const bio = document.getElementById('prof-bio').value;
-
-            const res = await fetch('/api/update_user', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, updates: {status_text, bio}})
-            });
-            if(res.ok) {
-                alert("تم حفظ البيانات!");
-                refreshUserData();
-            }
         }
     </script>
 </body>
