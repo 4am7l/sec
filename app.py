@@ -65,7 +65,10 @@ class ConnectionManager:
 
     async def send_to_user(self, recipient: str, message: dict):
         if recipient in self.active_connections:
-            await self.active_connections[recipient].send_json(message)
+            try:
+                await self.active_connections[recipient].send_json(message)
+            except Exception:
+                pass
 
 manager = ConnectionManager()
 
@@ -73,15 +76,15 @@ manager = ConnectionManager()
 @app.post("/api/register")
 async def register_user(data: dict):
     if not supabase:
-        raise HTTPException(status_code=500, detail="Database connection error")
+        raise HTTPException(status_code=500, detail="خطأ في اتصال الداتابيز")
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and password required")
+        raise HTTPException(status_code=400, detail="الاسم وكلمة السر مطلوبان")
     try:
         res = supabase.table("users").select("username").eq("username", username).execute()
         if res.data:
-            raise HTTPException(status_code=400, detail="Username already exists")
+            raise HTTPException(status_code=400, detail="اسم المستخدم موجود سابقاً")
         all_u = supabase.table("users").select("username").execute()
         assigned_role = "admin" if len(all_u.data) == 0 else "user"
         rec_key = generate_recovery_key()
@@ -109,30 +112,30 @@ async def register_user(data: dict):
 @app.post("/api/login")
 async def login_user(data: dict):
     if not supabase:
-        raise HTTPException(status_code=500, detail="Database connection error")
+        raise HTTPException(status_code=500, detail="خطأ في الداتابيز")
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     res = supabase.table("users").select("*").eq("username", username).execute()
     if not res.data or res.data[0]["password"] != hash_data(password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="معلومات الدخول خاطئة")
     return {"status": "success", "user": res.data[0]}
 
 @app.get("/api/get_user/{username}")
 async def get_user_data(username: str):
     res = supabase.table("users").select("*").eq("username", username).execute()
     if not res.data:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="غير موجود")
     return {"status": "success", "user": res.data[0]}
 
 @app.get("/api/get_all_users")
 async def get_all_users_api():
-    res = supabase.table("users").select("username, user_id, bio, status_text, status_icon, avatar, friend_requests, friends").execute()
+    res = supabase.table("users").select("username, user_id, bio, status_text, avatar, friend_requests, friends").execute()
     return {"status": "success", "users": res.data}
 
 @app.get("/api/get_messages/{u1}/{u2}")
 async def get_messages_api(u1: str, u2: str):
-    res1 = supabase.table("messages").select("*").eq("sender", u1).eq("recipient", u2).execute().data
-    res2 = supabase.table("messages").select("*").eq("sender", u2).eq("recipient", u1).execute().data
+    res1 = supabase.table("messages").select("*").eq("sender", u1).eq("recipient", u2).execute().data or []
+    res2 = supabase.table("messages").select("*").eq("sender", u2).eq("recipient", u1).execute().data or []
     all_msgs = res1 + res2
     all_msgs.sort(key=lambda x: x.get("created_at", ""))
     
@@ -141,9 +144,51 @@ async def get_messages_api(u1: str, u2: str):
         try:
             m['content'] = cipher.decrypt(m['content'].encode()).decode()
         except Exception:
-            m['content'] = "[Decryption Failed]"
+            m['content'] = "[فشل فك التشفير]"
         decrypted_msgs.append(m)
     return {"status": "success", "messages": decrypted_msgs}
+
+@app.post("/api/send_message_http")
+async def send_message_http(data: dict):
+    sender = data.get("sender")
+    recipient = data.get("recipient")
+    content = data.get("message", "").strip()
+    file_data = data.get("file")
+
+    if not sender or not recipient or (not content and not file_data):
+        raise HTTPException(status_code=400, detail="بيانات ناقصة")
+
+    final_payload = content
+    if file_data:
+        final_payload += f"\n[FILE:{file_data['name']}:{file_data['type']}]{file_data['base64']}"
+
+    enc_content = cipher.encrypt(final_payload.encode()).decode()
+    msg_id = secrets.token_hex(8)
+
+    db_payload = {
+        "id": msg_id,
+        "sender": sender,
+        "recipient": recipient,
+        "content": enc_content
+    }
+    
+    try:
+        supabase.table("messages").insert(db_payload).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"فشل الحفظ بجدول الرسائل: {str(e)}")
+
+    msg_out = {
+        "id": msg_id,
+        "sender": sender,
+        "recipient": recipient,
+        "content": content,
+        "file": file_data,
+        "time": "الآن"
+    }
+    await manager.send_to_user(recipient, msg_out)
+    await manager.send_to_user(sender, msg_out)
+
+    return {"status": "success", "message": msg_out}
 
 @app.post("/api/update_user")
 async def update_user(data: dict):
@@ -153,10 +198,10 @@ async def update_user(data: dict):
     res = supabase.table("users").select("*").eq("username", username).execute()
     return {"status": "success", "user": res.data[0]}
 
-# --- FULL REALTIME INTERFACE ---
+# --- UI HTML INTERFACE ---
 FULL_UI_HTML = """
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -191,7 +236,6 @@ FULL_UI_HTML = """
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
-        /* Chat Layout */
         .chat-container-layout { flex: 1; display: flex; gap: 15px; height: calc(100vh - 120px); }
         .friends-sidebar { width: 260px; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 15px; overflow-y: auto; }
         .friend-item { padding: 12px; background: #090d16; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
@@ -275,19 +319,18 @@ FULL_UI_HTML = """
             </div>
         </div>
 
-        <!-- 💬 MESSAGES PAGE WITH DIRECT FRIEND LIST SELECTION -->
         <div class="page-content" id="page-messages">
             <div class="chat-container-layout">
                 
                 <div class="friends-sidebar">
-                    <h4 style="margin-bottom:12px; color:#60a5fa;">💬 Friends List</h4>
+                    <h4 style="margin-bottom:12px; color:#60a5fa;">💬 قائمة الأصدقاء</h4>
                     <div id="chat-friends-list"></div>
                 </div>
 
                 <div class="chat-main-area">
                     <div class="chat-header-bar">
-                        <div><strong id="target-disp-name">Select a Friend to Start Chatting</strong></div>
-                        <span style="background:#059669; color:#fff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted</span>
+                        <div><strong id="target-disp-name">اختر صديقاً من القائمة على اليسار لبدء المحادثة</strong></div>
+                        <span style="background:#059669; color:#fff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 مشفر</span>
                     </div>
 
                     <div class="chat-message-container" id="chat-box"></div>
@@ -296,8 +339,8 @@ FULL_UI_HTML = """
                     <div class="input-bar">
                         <label class="attach-btn" for="file-input">📎</label>
                         <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
-                        <textarea id="msg-input" placeholder="Write a message..." onkeydown="handleEnterKey(event)"></textarea>
-                        <button class="send-btn" onclick="sendMsg()">SEND 🚀</button>
+                        <textarea id="msg-input" placeholder="اكتب رسالة..." onkeydown="handleEnterKey(event)"></textarea>
+                        <button class="send-btn" onclick="sendMsg()">إرسال 🚀</button>
                     </div>
                 </div>
 
@@ -307,7 +350,7 @@ FULL_UI_HTML = """
         <div class="page-content" id="page-friends">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <h3>👥 Friend Management</h3>
-                <button class="auth-btn" style="width:auto; padding:6px 14px;" onclick="refreshUserData()">🔄 Refresh Data</button>
+                <button class="auth-btn" style="width:auto; padding:6px 14px;" onclick="refreshUserData()">🔄 تحديث البيانات</button>
             </div>
 
             <div class="st-tabs">
@@ -393,20 +436,26 @@ FULL_UI_HTML = """
             else alert(data.detail);
         }
 
-        function initUserSession(user) {
-            userData = user;
-            updateUIProfile();
-            document.getElementById('auth-modal').style.display = 'none';
-
+        function connectWebSocket() {
+            if(!userData) return;
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${userData.username}`);
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                if ((data.sender === selectedChatFriend && data.recipient === userData.username) || 
-                    (data.sender === userData.username && data.recipient === selectedChatFriend)) {
+                if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
                     appendBubble(data.sender, data.content, data.time, data.file);
                 }
             };
+            ws.onclose = function() {
+                setTimeout(connectWebSocket, 2000);
+            };
+        }
+
+        function initUserSession(user) {
+            userData = user;
+            updateUIProfile();
+            document.getElementById('auth-modal').style.display = 'none';
+            connectWebSocket();
             refreshUserData();
         }
 
@@ -445,7 +494,7 @@ FULL_UI_HTML = """
             box.innerHTML = "";
             const flist = userData.friends || [];
             if(flist.length === 0) {
-                box.innerHTML = "<p style='color:#94a3b8; font-size:0.85em;'>No friends added yet.</p>";
+                box.innerHTML = "<p style='color:#94a3b8; font-size:0.85em;'>لا يوجد أصدقاء بعد. أضف أصدقاء من قسم Friends!</p>";
             } else {
                 flist.forEach(f => {
                     const activeCls = (selectedChatFriend === f) ? "active" : "";
@@ -459,10 +508,10 @@ FULL_UI_HTML = """
             document.querySelectorAll('.friend-item').forEach(i => i.classList.remove('active'));
             if(el) el.classList.add('active');
 
-            document.getElementById('target-disp-name').innerText = `Chatting with: ${friendName}`;
+            document.getElementById('target-disp-name').innerText = `محادثة مباشرة مع: ${friendName}`;
             
             const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML = "<p style='color:#94a3b8;'>Loading history...</p>";
+            chatBox.innerHTML = "<p style='color:#94a3b8;'>جاري تحميل السجل التفاعلي...</p>";
 
             const res = await fetch(`/api/get_messages/${userData.username}/${friendName}`);
             const data = await res.json();
@@ -470,7 +519,7 @@ FULL_UI_HTML = """
 
             if(res.ok && data.messages) {
                 data.messages.forEach(m => {
-                    appendBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'NOW', null);
+                    appendBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن', null);
                 });
             }
         }
@@ -493,25 +542,37 @@ FULL_UI_HTML = """
                     base64: e.target.result
                 };
                 const prev = document.getElementById('file-preview-name');
-                prev.innerText = `📁 Attached: ${file.name}`;
+                prev.innerText = `📁 تم إرفاق: ${file.name}`;
                 prev.style.display = 'block';
             };
             reader.readAsDataURL(file);
         }
 
-        function sendMsg() {
+        async function sendMsg() {
             const input = document.getElementById("msg-input");
             const msg = input.value.trim();
 
-            if(!selectedChatFriend) return alert("Please select a friend from the list first!");
+            if(!selectedChatFriend) return alert("اختر صديقاً من القائمة على اليسار أولاً!");
             if(!msg && !attachedFileData) return;
 
-            if(ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    recipient: selectedChatFriend,
-                    message: msg,
-                    file: attachedFileData
-                }));
+            const payload = {
+                sender: userData.username,
+                recipient: selectedChatFriend,
+                message: msg,
+                file: attachedFileData
+            };
+
+            // إرسال مضمون ومباشر عبر REST API لضمان حفظ الرسالة وسرعة الاستجابة
+            try {
+                const res = await fetch('/api/send_message_http', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if(!res.ok) alert(data.detail || "فشل إرسال الرسالة");
+            } catch(e) {
+                alert("خطأ في الاتصال أثناء إرسال الرسالة");
             }
 
             input.value = "";
@@ -531,11 +592,11 @@ FULL_UI_HTML = """
                 if (file.type && file.type.startsWith("image/")) {
                     fileHtml = `<br><img src="${file.base64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
                 } else {
-                    fileHtml = `<br><a href="${file.base64}" download="${file.name}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 Download ${file.name}</a>`;
+                    fileHtml = `<br><a href="${file.base64}" download="${file.name}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${file.name}</a>`;
                 }
             }
 
-            wrapper.innerHTML = `<div class="insta-bubble">${content || ''}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'NOW'}</span></div>`;
+            wrapper.innerHTML = `<div class="insta-bubble">${content || ''}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
@@ -585,7 +646,7 @@ FULL_UI_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: uname, updates: {friend_requests: reqs}})
             });
-            alert(`Request sent to ${uname}!`);
+            alert(`تم إرسال طلب صداقة إلى ${uname}!`);
             refreshUserData();
         }
 
@@ -593,16 +654,16 @@ FULL_UI_HTML = """
             const myfBox = document.getElementById('my-friends-tab-list');
             myfBox.innerHTML = "";
             const flist = userData.friends || [];
-            if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8;'>No friends added yet.</p>";
+            if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد أصدقاء حالياً.</p>";
             else {
                 flist.forEach(f => {
                     myfBox.innerHTML += `
                     <div class="user-card">
                         <div><strong style="color:#f8fafc;">${f}</strong></div>
                         <div style="display:flex; gap:6px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChatFromFriends('${f}')">💬 Chat</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="unfriend('${f}')">🗑️ Unfriend</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}')">🚫 Block</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChatFromFriends('${f}')">💬 محادثة</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="unfriend('${f}')">🗑️ حذف</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}')">🚫 حظر</button>
                         </div>
                     </div>`;
                 });
@@ -611,7 +672,7 @@ FULL_UI_HTML = """
             const reqBox = document.getElementById('requests-tab-list');
             reqBox.innerHTML = "";
             const reqs = userData.friend_requests || [];
-            if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8;'>No pending friend requests.</p>";
+            if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد طلبات معلقة.</p>";
             else {
                 reqs.forEach(r => {
                     reqBox.innerHTML += `
@@ -692,7 +753,7 @@ FULL_UI_HTML = """
             const bBox = document.getElementById('blocklist-container');
             bBox.innerHTML = "";
             const blist = userData.blocked || [];
-            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>No blocked users.</p>";
+            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد مستخدمين محظورين.</p>";
             else {
                 blist.forEach(b => {
                     bBox.innerHTML += `
@@ -732,7 +793,7 @@ FULL_UI_HTML = """
                 body: JSON.stringify({username: userData.username, updates: {status_text, bio}})
             });
             if(res.ok) {
-                alert("Profile Saved!");
+                alert("تم حفظ البيانات!");
                 refreshUserData();
             }
         }
@@ -750,37 +811,6 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
     await manager.connect(username, websocket)
     try:
         while True:
-            data = await websocket.receive_json()
-            sender = username
-            recipient = data.get("recipient")
-            content = data.get("message")
-            file = data.get("file")
-
-            if (content or file) and recipient and supabase:
-                enc_content = cipher.encrypt((content or "").encode()).decode()
-                msg_id = secrets.token_hex(8)
-
-                payload = {
-                    "id": msg_id,
-                    "sender": sender,
-                    "recipient": recipient,
-                    "content": enc_content,
-                    "burn": False,
-                    "reply": None,
-                    "reactions": {}
-                }
-                supabase.table("messages").insert(payload).execute()
-
-                msg_out = {
-                    "id": msg_id,
-                    "sender": sender,
-                    "recipient": recipient,
-                    "content": content,
-                    "file": file,
-                    "time": "NOW"
-                }
-                await manager.send_to_user(recipient, msg_out)
-                await manager.send_to_user(sender, msg_out)
-
+            await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(username)
