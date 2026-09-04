@@ -956,7 +956,7 @@ FULL_UI_HTML = """
 
         function showPage(pageId, btnEl) {
             document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach, (el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('page-' + pageId).classList.add('active');
             if(btnEl) btnEl.classList.add('active');
             if(pageId === 'friends' || pageId === 'blocklist' || pageId === 'messages') refreshUserData();
