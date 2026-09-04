@@ -27,7 +27,6 @@ try:
 except Exception:
     supabase = None
 
-# --- FERNET ENCRYPTION ---
 KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
 def load_or_generate_key():
     if not os.path.exists(KEY_FILE):
@@ -52,7 +51,6 @@ def generate_recovery_key():
     raw = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
     return f"{raw[:4]}-{raw[4:]}"
 
-# --- WEBSOCKET MANAGER ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
@@ -75,15 +73,15 @@ manager = ConnectionManager()
 @app.post("/api/register")
 async def register_user(data: dict):
     if not supabase:
-        raise HTTPException(status_code=500, detail="خطأ في الاتصال بقاعدة البيانات")
+        raise HTTPException(status_code=500, detail="Database connection error")
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     if not username or not password:
-        raise HTTPException(status_code=400, detail="اسم المستخدم وكلمة السر مطلوبان")
+        raise HTTPException(status_code=400, detail="Username and password required")
     try:
         res = supabase.table("users").select("username").eq("username", username).execute()
         if res.data:
-            raise HTTPException(status_code=400, detail="اسم المستخدم مستعمل سابقاً")
+            raise HTTPException(status_code=400, detail="Username already exists")
         all_u = supabase.table("users").select("username").execute()
         assigned_role = "admin" if len(all_u.data) == 0 else "user"
         rec_key = generate_recovery_key()
@@ -100,6 +98,7 @@ async def register_user(data: dict):
             "bio": "Hey there! I am using Secure Chat.",
             "friends": [],
             "friend_requests": [],
+            "nicknames": {},
             "blocked": []
         }
         supabase.table("users").insert(payload).execute()
@@ -110,111 +109,38 @@ async def register_user(data: dict):
 @app.post("/api/login")
 async def login_user(data: dict):
     if not supabase:
-        raise HTTPException(status_code=500, detail="خطأ في الاتصال بقاعدة البيانات")
+        raise HTTPException(status_code=500, detail="Database connection error")
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     res = supabase.table("users").select("*").eq("username", username).execute()
     if not res.data or res.data[0]["password"] != hash_data(password):
-        raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة السر غير صحيحة")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"status": "success", "user": res.data[0]}
 
 @app.get("/api/get_user/{username}")
 async def get_user_data(username: str):
     res = supabase.table("users").select("*").eq("username", username).execute()
     if not res.data:
-        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+        raise HTTPException(status_code=404, detail="User not found")
     return {"status": "success", "user": res.data[0]}
 
-@app.post("/api/update_profile")
-async def update_profile(data: dict):
+@app.get("/api/get_all_users")
+async def get_all_users_api():
+    res = supabase.table("users").select("username, user_id, bio, status_text, status_icon, avatar, friend_requests, friends").execute()
+    return {"status": "success", "users": res.data}
+
+@app.post("/api/update_user")
+async def update_user(data: dict):
     username = data.get("username")
-    status_text = data.get("status_text")
-    bio = data.get("bio")
-    avatar = data.get("avatar")
-    
-    update_data = {}
-    if status_text is not None: update_data["status_text"] = status_text
-    if bio is not None: update_data["bio"] = bio
-    if avatar is not None: update_data["avatar"] = avatar
-    
-    supabase.table("users").update(update_data).eq("username", username).execute()
+    updates = data.get("updates", {})
+    supabase.table("users").update(updates).eq("username", username).execute()
     res = supabase.table("users").select("*").eq("username", username).execute()
     return {"status": "success", "user": res.data[0]}
 
-@app.get("/api/search_users")
-async def search_users(q: str):
-    res = supabase.table("users").select("username, user_id, bio, status_text, avatar").execute()
-    matches = [u for u in res.data if q.lower() in u["username"].lower() or q.upper() in u.get("user_id", "")]
-    return {"status": "success", "users": matches}
-
-# --- FRIENDS & BLOCK SYSTEM ---
-@app.post("/api/send_request")
-async def send_request(data: dict):
-    username = data.get("username")
-    target_name = data.get("target_name")
-    
-    res = supabase.table("users").select("friend_requests").eq("username", target_name).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
-        
-    reqs = res.data[0].get("friend_requests") or []
-    if username not in reqs:
-        reqs.append(username)
-        supabase.table("users").update({"friend_requests": reqs}).eq("username", target_name).execute()
-        
-    return {"status": "success"}
-
-@app.post("/api/respond_request")
-async def respond_request(data: dict):
-    username = data.get("username")
-    requester = data.get("requester")
-    action = data.get("action")
-    
-    u_data = supabase.table("users").select("friends, friend_requests").eq("username", username).execute().data[0]
-    reqs = u_data.get("friend_requests") or []
-    friends = u_data.get("friends") or []
-    
-    if requester in reqs:
-        reqs.remove(requester)
-        
-    if action == "accept":
-        if requester not in friends:
-            friends.append(requester)
-        r_data = supabase.table("users").select("friends").eq("username", requester).execute().data[0]
-        r_friends = r_data.get("friends") or []
-        if username not in r_friends:
-            r_friends.append(username)
-            supabase.table("users").update({"friends": r_friends}).eq("username", requester).execute()
-
-    supabase.table("users").update({"friends": friends, "friend_requests": reqs}).eq("username", username).execute()
-    return {"status": "success"}
-
-@app.post("/api/block_user")
-async def block_user(data: dict):
-    username = data.get("username")
-    target_name = data.get("target_name")
-    action = data.get("action") # "block" or "unblock"
-
-    u_data = supabase.table("users").select("friends, blocked").eq("username", username).execute().data[0]
-    friends = u_data.get("friends") or []
-    blocked = u_data.get("blocked") or []
-
-    if action == "block":
-        if target_name not in blocked:
-            blocked.append(target_name)
-        if target_name in friends:
-            friends.remove(target_name)
-    elif action == "unblock":
-        if target_name in blocked:
-            blocked.remove(target_name)
-
-    supabase.table("users").update({"friends": friends, "blocked": blocked}).eq("username", username).execute()
-    return {"status": "success"}
-
-# --- FULL REALTIME INTERFACE ---
+# --- UI INTERFACE ---
 FULL_UI_HTML = """
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -225,53 +151,47 @@ FULL_UI_HTML = """
         body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
 
         .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.96); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 35px; border-radius: 20px; width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
-        .auth-card h1 { color: #3b82f6; font-size: 2.2em; font-weight: 800; text-align: center; margin-bottom: 2px; }
-        .auth-card p.subtitle { color: #94a3b8; font-size: 0.9em; text-align: center; margin-bottom: 20px; }
+        .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 35px; border-radius: 20px; width: 440px; }
+        .auth-card h1 { color: #3b82f6; font-size: 2.2em; font-weight: 800; text-align: center; }
+        .auth-card p { color: #94a3b8; text-align: center; margin-bottom: 20px; }
         
-        .auth-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #090d16; padding: 5px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
-        .tab-btn { flex: 1; padding: 8px; background: transparent; border: none; color: #94a3b8; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85em; }
+        .auth-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #090d16; padding: 5px; border-radius: 12px; }
+        .tab-btn { flex: 1; padding: 8px; background: transparent; border: none; color: #94a3b8; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .tab-btn.active { background: #2563eb; color: #fff; }
 
         .auth-form { display: none; }
         .auth-form.active { display: block; }
-        .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; font-size: 0.9em; }
-        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+        .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; }
+        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; }
 
-        .sidebar { width: 310px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
-        .sidebar-profile { text-align: center; padding: 10px 0; }
-        .avatar-circle { width: 85px; height: 85px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 32px; margin-bottom: 10px; overflow: hidden; }
+        .sidebar { width: 310px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .sidebar-profile { text-align: center; }
+        .avatar-circle { width: 85px; height: 85px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 32px; margin: 0 auto 10px auto; overflow: hidden; }
         .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
-        .role-badge { background: #2563eb; color: #ffffff; padding: 3px 10px; border-radius: 12px; font-size: 0.75em; font-weight: bold; }
         
-        .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.25s ease; margin-bottom: 6px; }
+        .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; margin-bottom: 6px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; }
 
         .main-container { flex: 1; display: flex; flex-direction: column; background: #090d16; }
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
-        /* Friend Hub Buttons Grid */
-        .friend-nav-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
-        .friend-nav-card { background: linear-gradient(135deg, #1e293b 0%, #111827 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.25s ease; }
-        .friend-nav-card:hover, .friend-nav-card.active { border-color: #3b82f6; transform: translateY(-3px); box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25); background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); }
-        .friend-nav-card h4 { font-size: 1.1em; color: #fff; margin-bottom: 4px; }
-        .friend-nav-card p { font-size: 0.8em; color: #94a3b8; }
-        .friend-nav-card.active p { color: #dbeafe; }
+        .st-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; }
+        .st-tab-btn { background: rgba(30, 41, 59, 0.5); color: #94a3b8; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .st-tab-btn.active { background: #2563eb; color: #fff; }
 
-        .form-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 20px; border-radius: 16px; }
-        .form-card input, .form-card textarea { width: 100%; padding: 10px; background: #090d16; border: 1px solid #334155; border-radius: 8px; color: #fff; margin-bottom: 10px; outline: none; }
-        .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
-        
-        .sub-view { display: none; }
-        .sub-view.active { display: block; }
+        .st-tab-content { display: none; }
+        .st-tab-content.active { display: block; }
+
+        .user-card { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+        .card-box { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
 
         .chat-header-bar { background: #111827; padding: 14px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
-        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: #0b0f19; }
+        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; background: #0b0f19; border-radius: 16px; }
         .msg-wrapper { display: flex; width: 100%; }
         .msg-wrapper.sent { justify-content: flex-end; }
         .msg-wrapper.received { justify-content: flex-start; }
-        .insta-bubble { max-width: 68%; padding: 12px 16px; border-radius: 18px; font-size: 0.95em; line-height: 1.45; word-wrap: break-word; }
+        .insta-bubble { max-width: 68%; padding: 12px 16px; border-radius: 18px; font-size: 0.95em; line-height: 1.45; }
         .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; }
         .received .insta-bubble { background: #1e293b; color: #f1f5f9; }
         .input-bar { background: #111827; padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); display: flex; gap: 12px; margin-top: 10px; }
@@ -284,7 +204,7 @@ FULL_UI_HTML = """
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
             <h1>⚡ CYBER MESSENGER</h1>
-            <p class="subtitle">Direct Encrypted Platform</p>
+            <p>Encrypted Direct Messaging Platform</p>
             <div class="auth-tabs">
                 <button class="tab-btn active" onclick="switchAuthTab('login')">🔑 LOGIN</button>
                 <button class="tab-btn" onclick="switchAuthTab('reg')">📝 REGISTER</button>
@@ -308,26 +228,27 @@ FULL_UI_HTML = """
             <div class="avatar-circle" id="user-avatar-disp">👤</div>
             <h3 id="user-name-disp" style="color:#f8fafc; font-weight:700;">User</h3>
             <p id="user-status-disp" style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"Available"</p>
-            <span class="role-badge" id="user-role-disp">USER</span>
+            <span style="background:#2563eb; color:#ffffff; padding:3px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;" id="user-role-disp">USER</span>
         </div>
         <small style="color:#94a3b8;">Your Permanent ID:</small>
         <div style="background:#090d16; padding:8px; border-radius:8px; font-family:monospace; color:#3b82f6;" id="user-id-disp">#0000</div>
         <hr style="border:0.5px solid rgba(255,255,255,0.08); margin: 10px 0;">
         <button class="nav-btn active" onclick="showPage('dashboard', this)">🏠 Dashboard</button>
         <button class="nav-btn" onclick="showPage('messages', this)">💬 Messages</button>
-        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends Manager</button>
+        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends</button>
         <button class="nav-btn" onclick="showPage('profile', this)">👤 Profile</button>
+        <button class="nav-btn" onclick="showPage('blocklist', this)">🚫 Blocklist</button>
         <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
     </div>
 
     <div class="main-container">
 
         <div class="page-content active" id="page-dashboard">
-            <h3>📊 Dashboard Overview</h3>
+            <h3>📊 System Overview</h3>
             <div style="display:flex; gap:15px; margin-top:15px;">
-                <div class="card-box" style="background:#111827; padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); flex:1; text-align:center;"><h2 style="color:#60a5fa; font-size:2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
-                <div class="card-box" style="background:#111827; padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); flex:1; text-align:center;"><h2 style="color:#f59e0b; font-size:2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
-                <div class="card-box" style="background:#111827; padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); flex:1; text-align:center;"><h2 style="color:#10b981; font-size:2em;">⚡</h2><small style="color:#94a3b8;">WebSocket Active</small></div>
+                <div class="card-box"><h2 style="color:#60a5fa; font-size:2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
+                <div class="card-box"><h2 style="color:#f59e0b; font-size:2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
+                <div class="card-box"><h2 style="color:#10b981; font-size:2em;">⚡</h2><small style="color:#94a3b8;">Cloud Database Active</small></div>
             </div>
         </div>
 
@@ -344,68 +265,50 @@ FULL_UI_HTML = """
             </div>
         </div>
 
-        <div class="page-content" id="page-profile">
-            <h3>👤 Profile Customization</h3>
-            <div class="form-card">
-                <label style="font-size:0.85em; color:#94a3b8;">Status Message</label>
-                <input type="text" id="prof-status">
-                <label style="font-size:0.85em; color:#94a3b8;">About Me (Bio)</label>
-                <textarea id="prof-bio"></textarea>
-                <label style="font-size:0.85em; color:#94a3b8;">Avatar URL (Image Link)</label>
-                <input type="text" id="prof-avatar">
-                <button class="auth-btn" style="width:100%;" onclick="saveProfile()">Save Profile 💾</button>
+        <!-- 👥 FRIENDS MANAGEMENT PAGE EXACT STREAMLIT TABS MATCH -->
+        <div class="page-content" id="page-friends">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3>👥 Friend Management</h3>
+                <button class="auth-btn" style="width:auto; padding:6px 14px;" onclick="refreshUserData()">🔄 Refresh Data</button>
+            </div>
+
+            <div class="st-tabs">
+                <button class="st-tab-btn active" onclick="switchStTab('search', this)">🔍 Search & Add</button>
+                <button class="st-tab-btn" onclick="switchStTab('myfriends', this)">👥 My Friends</button>
+                <button class="st-tab-btn" onclick="switchStTab('requests', this)">📩 Requests</button>
+            </div>
+
+            <!-- TAB 1: SEARCH & ADD -->
+            <div class="st-tab-content active" id="tab-search">
+                <input type="text" id="s_query_key" placeholder="Search user by Username or ID (e.g. #A123)" style="width:100%; padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none; margin-bottom:10px;" oninput="searchUsersLive()">
+                <div id="search-results-list"></div>
+            </div>
+
+            <!-- TAB 2: MY FRIENDS -->
+            <div class="st-tab-content" id="tab-myfriends">
+                <div id="my-friends-tab-list"></div>
+            </div>
+
+            <!-- TAB 3: REQUESTS -->
+            <div class="st-tab-content" id="tab-requests">
+                <div id="requests-tab-list"></div>
             </div>
         </div>
 
-        <!-- FRIENDS SECTION WITH 3 DIRECT BUTTONS -->
-        <div class="page-content" id="page-friends">
-            <h3>👥 Friends Manager</h3>
-            <p style="color:#94a3b8; margin-bottom: 20px;">اختر القائمة التي تريد إدارتها:</p>
-
-            <div class="friend-nav-grid">
-                <div class="friend-nav-card active" onclick="openFriendSubView('my-friends', this)">
-                    <h4>👥 الأصدقاء الحاليين</h4>
-                    <p id="sub-cnt-friends">0 أصدقاء</p>
-                </div>
-                <div class="friend-nav-card" onclick="openFriendSubView('search-add', this)">
-                    <h4>🔍 البحث وإضافة أصدقاء</h4>
-                    <p>ابحث بالكود أو الاسم</p>
-                </div>
-                <div class="friend-nav-card" onclick="openFriendSubView('block-list', this)">
-                    <h4>🚫 قائمة الحظر (Block)</h4>
-                    <p id="sub-cnt-blocked">0 محظورين</p>
-                </div>
+        <div class="page-content" id="page-profile">
+            <h3>👤 Profile Customization</h3>
+            <div style="background:#111827; padding:20px; border-radius:12px; margin-top:15px;">
+                <label style="font-size:0.85em; color:#94a3b8;">Custom Status Message</label>
+                <input type="text" id="prof-status" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:8px; color:#fff; margin-bottom:10px;">
+                <label style="font-size:0.85em; color:#94a3b8;">About Me (Bio)</label>
+                <textarea id="prof-bio" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:8px; color:#fff; margin-bottom:10px;"></textarea>
+                <button class="auth-btn" onclick="saveProfile()">SAVE PROFILE CHANGES 💾</button>
             </div>
+        </div>
 
-            <!-- VIEW 1: MY FRIENDS -->
-            <div class="sub-view active" id="view-my-friends">
-                <div class="form-card">
-                    <h4 style="margin-bottom:12px;">قائمة الأصدقاء الحاليين</h4>
-                    <div id="my-friends-container"></div>
-                </div>
-                <div class="form-card" style="margin-top:15px;">
-                    <h4 style="margin-bottom:12px;">📩 طلبات الصداقة المعلقة</h4>
-                    <div id="pending-requests-container"></div>
-                </div>
-            </div>
-
-            <!-- VIEW 2: SEARCH & ADD -->
-            <div class="sub-view" id="view-search-add">
-                <div class="form-card">
-                    <h4 style="margin-bottom:12px;">البحث عن أصدقاء جدد</h4>
-                    <input type="text" id="friend-search-q" placeholder="اكتب اسم المستخدم أو الكود (#A123)...">
-                    <button class="auth-btn" style="width:100%; margin-top:5px;" onclick="searchFriends()">بحث 🔍</button>
-                    <div id="search-results-container" style="margin-top:15px;"></div>
-                </div>
-            </div>
-
-            <!-- VIEW 3: BLOCK LIST -->
-            <div class="sub-view" id="view-block-list">
-                <div class="form-card">
-                    <h4 style="margin-bottom:12px;">إدارة قائمة الحظر</h4>
-                    <div id="blocked-users-container"></div>
-                </div>
-            </div>
+        <div class="page-content" id="page-blocklist">
+            <h3>🚫 Blocklist Management</h3>
+            <div id="blocklist-container" style="margin-top:15px;"></div>
         </div>
 
     </div>
@@ -413,6 +316,7 @@ FULL_UI_HTML = """
     <script>
         let ws = null;
         let userData = null;
+        let allUsersCache = [];
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -448,7 +352,7 @@ FULL_UI_HTML = """
                 body: JSON.stringify({username: u, password: p})
             });
             const data = await res.json();
-            if(res.ok) alert(`SUCCESS! Saved Recovery Key: ${data.recovery_key}`);
+            if(res.ok) alert(`Account created! ID: ${data.user_id} | Key: ${data.recovery_key}`);
             else alert(data.detail);
         }
 
@@ -472,7 +376,13 @@ FULL_UI_HTML = """
             if(res.ok) {
                 userData = data.user;
                 updateUIProfile();
-                renderFriendsViews();
+            }
+            const resAll = await fetch('/api/get_all_users');
+            const dataAll = await resAll.json();
+            if(resAll.ok) {
+                allUsersCache = dataAll.users;
+                renderFriendsTabs();
+                renderBlocklist();
             }
         }
 
@@ -482,150 +392,182 @@ FULL_UI_HTML = """
             document.getElementById('user-id-disp').innerText = userData.user_id || '#0000';
             document.getElementById('prof-status').value = userData.status_text || '';
             document.getElementById('prof-bio').value = userData.bio || '';
-            document.getElementById('prof-avatar').value = userData.avatar || '';
 
             const flist = userData.friends || [];
             const rlist = userData.friend_requests || [];
-            const blist = userData.blocked || [];
-            
             document.getElementById('dash-friends-count').innerText = flist.length;
             document.getElementById('dash-reqs-count').innerText = rlist.length;
-            document.getElementById('sub-cnt-friends').innerText = flist.length + " أصدقاء";
-            document.getElementById('sub-cnt-blocked').innerText = blist.length + " محظورين";
-
-            if(userData.avatar) {
-                document.getElementById('user-avatar-disp').innerHTML = `<img src="${userData.avatar}">`;
-            } else {
-                document.getElementById('user-avatar-disp').innerText = userData.username.charAt(0).toUpperCase();
-            }
         }
 
-        async function saveProfile() {
-            const status_text = document.getElementById('prof-status').value;
-            const bio = document.getElementById('prof-bio').value;
-            const avatar = document.getElementById('prof-avatar').value;
-
-            const res = await fetch('/api/update_profile', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, status_text, bio, avatar})
-            });
-            const data = await res.json();
-            if(res.ok) {
-                userData = data.user;
-                updateUIProfile();
-                alert("Profile Saved!");
-            }
+        function switchStTab(tabId, btnEl) {
+            document.querySelectorAll('.st-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.st-tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            btnEl.classList.add('active');
         }
 
-        function openFriendSubView(viewId, cardEl) {
-            document.querySelectorAll('.friend-nav-card').forEach(c => c.classList.remove('active'));
-            document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
-
-            document.getElementById('view-' + viewId).classList.add('active');
-            cardEl.classList.add('active');
-        }
-
-        async function searchFriends() {
-            const q = document.getElementById('friend-search-q').value.trim();
-            if(!q) return;
-            const res = await fetch(`/api/search_users?q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            const box = document.getElementById('search-results-container');
+        function searchUsersLive() {
+            const q = document.getElementById('s_query_key').value.trim().toLowerCase();
+            const box = document.getElementById('search-results-list');
             box.innerHTML = "";
-            data.users.forEach(u => {
-                if(u.username !== userData.username) {
+            if(!q) return;
+
+            allUsersCache.forEach(u => {
+                if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || u.user_id.toLowerCase().includes(q))) {
                     const isFriend = (userData.friends || []).includes(u.username);
+                    const isPending = (u.friend_requests || []).includes(userData.username);
+
+                    let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ Send Request</button>`;
+                    if(isFriend) actionBtn = `<span style="color:#10b981; font-weight:bold;">Friends ✅</span>`;
+                    else if(isPending) actionBtn = `<span style="color:#f59e0b; font-weight:bold;">Pending ⏳</span>`;
+
                     box.innerHTML += `
                     <div class="user-card">
                         <div>
-                            <strong>${u.username}</strong> (${u.user_id})
-                            <p style="font-size:0.8em; color:#94a3b8;">${u.bio || ''}</p>
+                            <strong style="color:#f8fafc;">${u.username}</strong>
+                            <span style="color:#60a5fa; font-size:0.88em; margin-left:6px;">(${u.user_id})</span>
+                            <p style="color:#94a3b8; font-size:0.82em; margin:2px 0 0 0;">${u.bio || ''}</p>
                         </div>
-                        ${isFriend ? '<span style="color:#10b981; font-weight:bold;">صديق ✅</span>' : `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendRequest('${u.username}')">📩 إرسال طلب</button>`}
+                        <div>${actionBtn}</div>
                     </div>`;
                 }
             });
         }
 
-        async function sendRequest(tname) {
-            const res = await fetch('/api/send_request', {
+        async function sendReq(uname) {
+            const uObj = allUsersCache.find(x => x.username === uname);
+            let reqs = uObj.friend_requests || [];
+            if(!reqs.includes(userData.username)) reqs.push(userData.username);
+
+            await fetch('/api/update_user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, target_name: tname})
+                body: JSON.stringify({username: uname, updates: {friend_requests: reqs}})
             });
-            if(res.ok) alert("تم إرسال طلب الصداقة بنجاح!");
+            alert(`Request sent to ${uname}!`);
+            refreshUserData();
         }
 
-        function renderFriendsViews() {
-            // 1. Friends List
-            const fBox = document.getElementById('my-friends-container');
-            fBox.innerHTML = "";
+        function renderFriendsTabs() {
+            // Render My Friends
+            const myfBox = document.getElementById('my-friends-tab-list');
+            myfBox.innerHTML = "";
             const flist = userData.friends || [];
-            if(flist.length === 0) fBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد أصدقاء حالياً.</p>";
+            if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8;'>No friends added yet.</p>";
             else {
                 flist.forEach(f => {
-                    fBox.innerHTML += `
+                    myfBox.innerHTML += `
                     <div class="user-card">
-                        <div><strong>${f}</strong></div>
-                        <div>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 محادثة</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}', 'block')">🚫 حظر</button>
+                        <div><strong style="color:#f8fafc;">${f}</strong></div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="unfriend('${f}')">🗑️ Unfriend</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}')">🚫 Block</button>
                         </div>
                     </div>`;
                 });
             }
 
-            // 2. Pending Requests
-            const rBox = document.getElementById('pending-requests-container');
-            rBox.innerHTML = "";
+            // Render Requests
+            const reqBox = document.getElementById('requests-tab-list');
+            reqBox.innerHTML = "";
             const reqs = userData.friend_requests || [];
-            if(reqs.length === 0) rBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد طلبات صداقة معلقة.</p>";
+            if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8;'>No pending friend requests.</p>";
             else {
                 reqs.forEach(r => {
-                    rBox.innerHTML += `
+                    reqBox.innerHTML += `
                     <div class="user-card">
-                        <div>قام <strong>${r}</strong> بإرسال طلب صداقة إليك</div>
-                        <div>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="respondReq('${r}', 'accept')">قبول ✅</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="respondReq('${r}', 'decline')">رفض ❌</button>
+                        <div><strong style="color:#f8fafc;">${r}</strong></div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="acceptReq('${r}')">ACCEPT ✅</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="declineReq('${r}')">DECLINE ❌</button>
                         </div>
                     </div>`;
                 });
             }
+        }
 
-            // 3. Blocked List
-            const bBox = document.getElementById('blocked-users-container');
+        async function acceptReq(rUser) {
+            let myF = userData.friends || [];
+            let myR = userData.friend_requests || [];
+            myF.push(rUser);
+            myR = myR.filter(x => x !== rUser);
+
+            await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: {friends: myF, friend_requests: myR}})
+            });
+
+            const rObj = allUsersCache.find(x => x.username === rUser);
+            let rF = rObj ? (rObj.friends || []) : [];
+            rF.push(userData.username);
+            await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: rUser, updates: {friends: rF}})
+            });
+
+            refreshUserData();
+        }
+
+        async function declineReq(rUser) {
+            let myR = (userData.friend_requests || []).filter(x => x !== rUser);
+            await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: {friend_requests: myR}})
+            });
+            refreshUserData();
+        }
+
+        async function unfriend(fUser) {
+            let myF = (userData.friends || []).filter(x => x !== fUser);
+            await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: {friends: myF}})
+            });
+            refreshUserData();
+        }
+
+        async function blockUser(fUser) {
+            let myB = userData.blocked || [];
+            let myF = (userData.friends || []).filter(x => x !== fUser);
+            if(!myB.includes(fUser)) myB.push(fUser);
+
+            await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: {blocked: myB, friends: myF}})
+            });
+            refreshUserData();
+        }
+
+        function renderBlocklist() {
+            const bBox = document.getElementById('blocklist-container');
             bBox.innerHTML = "";
             const blist = userData.blocked || [];
-            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد مستخدمين محظورين.</p>";
+            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>No blocked users.</p>";
             else {
                 blist.forEach(b => {
                     bBox.innerHTML += `
                     <div class="user-card">
-                        <div><strong>${b}</strong></div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="blockUser('${b}', 'unblock')">إلغاء الحظر ✅</button>
+                        <div><strong style="color:#f8fafc;">${b}</strong></div>
+                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="unblock('${b}')">UNBLOCK ✅</button>
                     </div>`;
                 });
             }
         }
 
-        async function respondReq(reqName, action) {
-            const res = await fetch('/api/respond_request', {
+        async function unblock(bUser) {
+            let myB = (userData.blocked || []).filter(x => x !== bUser);
+            await fetch('/api/update_user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, requester: reqName, action: action})
+                body: JSON.stringify({username: userData.username, updates: {blocked: myB}})
             });
-            if(res.ok) refreshUserData();
-        }
-
-        async function blockUser(tname, action) {
-            const res = await fetch('/api/block_user', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, target_name: tname, action: action})
-            });
-            if(res.ok) refreshUserData();
+            refreshUserData();
         }
 
         function startChat(fname) {
@@ -639,15 +581,15 @@ FULL_UI_HTML = """
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('page-' + pageId).classList.add('active');
             if(btnEl) btnEl.classList.add('active');
-            if(pageId === 'friends') refreshUserData();
+            if(pageId === 'friends' || pageId === 'blocklist') refreshUserData();
         }
 
         function sendMsg() {
             const input = document.getElementById("msg-input");
             const target = document.getElementById("target-user-input").value.trim();
             const msg = input.value.trim();
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("الجلسة غير متصلة");
-            if(!msg || !target) return alert("حدد المستلم واكتب الرسالة");
+            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Not Connected");
+            if(!msg || !target) return alert("Select recipient and write message");
             ws.send(JSON.stringify({ recipient: target, message: msg }));
             input.value = "";
         }
@@ -664,3 +606,46 @@ FULL_UI_HTML = """
     </script>
 </body>
 </html>
+"""
+
+@app.get("/", response_class=HTMLResponse)
+async def get_index():
+    return FULL_UI_HTML
+
+@app.websocket("/ws/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str):
+    await manager.connect(username, websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            sender = username
+            recipient = data.get("recipient")
+            content = data.get("message")
+
+            if content and recipient and supabase:
+                enc_content = cipher.encrypt(content.encode()).decode()
+                msg_id = secrets.token_hex(8)
+
+                payload = {
+                    "id": msg_id,
+                    "sender": sender,
+                    "recipient": recipient,
+                    "content": enc_content,
+                    "burn": False,
+                    "reply": None,
+                    "reactions": {}
+                }
+                supabase.table("messages").insert(payload).execute()
+
+                msg_out = {
+                    "id": msg_id,
+                    "sender": sender,
+                    "recipient": recipient,
+                    "content": content,
+                    "time": "NOW"
+                }
+                await manager.send_to_user(recipient, msg_out)
+                await manager.send_to_user(sender, msg_out)
+
+    except WebSocketDisconnect:
+        manager.disconnect(username)
