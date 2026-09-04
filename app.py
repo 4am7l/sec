@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import secrets
 import hashlib
@@ -9,10 +10,23 @@ from supabase import create_client, Client
 
 app = FastAPI()
 
+# تفعيل CORS لمنع مشاكل حظر الطلبات من المتصفح
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- SUPABASE CONFIG ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://shgxaxtjurbvbqdvmkzt.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_FEE0CeWycaYbelk2VZPTBw_8j7lkftq")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    supabase = None
 
 # --- FERNET ENCRYPTION ---
 KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
@@ -61,58 +75,70 @@ manager = ConnectionManager()
 # --- DATABASE AUTH APIs ---
 @app.post("/api/register")
 async def register_user(data: dict):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="خطأ في الاتصال بقاعدة البيانات Supabase")
+        
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     
     if not username or not password:
         raise HTTPException(status_code=400, detail="اسم المستخدم وكلمة السر مطلوبان")
     
-    res = supabase.table("users").select("*").eq("username", username).execute()
-    if res.data:
-        raise HTTPException(status_code=400, detail="اسم المستخدم مستعمل سابقاً في قاعدة البيانات")
-    
-    all_u = supabase.table("users").select("username").execute()
-    assigned_role = "admin" if len(all_u.data) == 0 else "user"
-    
-    rec_key = generate_recovery_key()
-    u_id = generate_user_id()
-    
-    payload = {
-        "username": username,
-        "password": hash_data(password),
-        "recovery_key": hash_data(rec_key),
-        "role": assigned_role,
-        "user_id": u_id,
-        "avatar": "",
-        "status_text": "Available",
-        "status_icon": "🟢 Online",
-        "bio": "Hey there! I am using Secure Chat.",
-        "friends": [],
-        "friend_requests": [],
-        "nicknames": {},
-        "blocked": []
-    }
-    
-    supabase.table("users").insert(payload).execute()
-    return {"status": "success", "user_id": u_id, "recovery_key": rec_key}
+    try:
+        res = supabase.table("users").select("*").eq("username", username).execute()
+        if res.data:
+            raise HTTPException(status_code=400, detail="اسم المستخدم مستعمل سابقاً")
+        
+        all_u = supabase.table("users").select("username").execute()
+        assigned_role = "admin" if len(all_u.data) == 0 else "user"
+        
+        rec_key = generate_recovery_key()
+        u_id = generate_user_id()
+        
+        payload = {
+            "username": username,
+            "password": hash_data(password),
+            "recovery_key": hash_data(rec_key),
+            "role": assigned_role,
+            "user_id": u_id,
+            "avatar": "",
+            "status_text": "Available",
+            "status_icon": "🟢 Online",
+            "bio": "Hey there! I am using Secure Chat.",
+            "friends": [],
+            "friend_requests": [],
+            "nicknames": {},
+            "blocked": []
+        }
+        
+        supabase.table("users").insert(payload).execute()
+        return {"status": "success", "user_id": u_id, "recovery_key": rec_key}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"خطأ داتابيز: {str(e)}")
 
 @app.post("/api/login")
 async def login_user(data: dict):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="خطأ في الاتصال بقاعدة البيانات")
+
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     
     if not username or not password:
         raise HTTPException(status_code=400, detail="يرجى إدخال اسم المستخدم وكلمة السر")
 
-    res = supabase.table("users").select("*").eq("username", username).execute()
-    if not res.data:
-        raise HTTPException(status_code=401, detail="الحساب غير موجود في قاعدة البيانات")
-    
-    user_row = res.data[0]
-    if user_row["password"] != hash_data(password):
-        raise HTTPException(status_code=401, detail="كلمة السر غير صحيحة")
-    
-    return {"status": "success", "user": user_row}
+    try:
+        res = supabase.table("users").select("*").eq("username", username).execute()
+        if not res.data:
+            raise HTTPException(status_code=401, detail="الحساب غير موجود")
+        
+        user_row = res.data[0]
+        if user_row["password"] != hash_data(password):
+            raise HTTPException(status_code=401, detail="كلمة السر غير صحيحة")
+        
+        return {"status": "success", "user": user_row}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"خطأ سيرفر: {str(e)}")
 
 @app.post("/api/recover")
 async def recover_password(data: dict):
@@ -120,19 +146,19 @@ async def recover_password(data: dict):
     rec_key = data.get("recovery_key", "").strip()
     new_pass = data.get("new_password", "").strip()
     
-    if not username or not rec_key or not new_pass:
-        raise HTTPException(status_code=400, detail="جميع الحقول مطلوبة")
-
-    res = supabase.table("users").select("*").eq("username", username).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="اسم المستخدم غير موجود")
-    
-    user_row = res.data[0]
-    if user_row.get("recovery_key") != hash_data(rec_key):
-        raise HTTPException(status_code=401, detail="مفتاح الاستعادة (Recovery Key) غير صحيح")
-    
-    supabase.table("users").update({"password": hash_data(new_pass)}).eq("username", username).execute()
-    return {"status": "success"}
+    try:
+        res = supabase.table("users").select("*").eq("username", username).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="اسم المستخدم غير موجود")
+        
+        user_row = res.data[0]
+        if user_row.get("recovery_key") != hash_data(rec_key):
+            raise HTTPException(status_code=401, detail="مفتاح الاستعادة غير صحيح")
+        
+        supabase.table("users").update({"password": hash_data(new_pass)}).eq("username", username).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- FULL REALTIME INTERFACE ---
 FULL_UI_HTML = """
@@ -147,7 +173,6 @@ FULL_UI_HTML = """
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
         body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
 
-        /* Auth Gateway Glassmorphism */
         .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.96); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
         .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 35px; border-radius: 20px; width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
         .auth-card h1 { color: #3b82f6; font-size: 2.2em; font-weight: 800; text-align: center; margin-bottom: 2px; }
@@ -163,7 +188,6 @@ FULL_UI_HTML = """
         .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
         .auth-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
 
-        /* Sidebar UI */
         .sidebar { width: 310px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
         .sidebar-profile { text-align: center; padding: 10px 0; }
         .avatar-circle { width: 85px; height: 85px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 32px; margin-bottom: 10px; }
@@ -173,12 +197,10 @@ FULL_UI_HTML = """
         .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.25s ease; margin-bottom: 6px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; border-color: rgba(255, 255, 255, 0.2); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
 
-        /* Main Workspace */
         .main-container { flex: 1; display: flex; flex-direction: column; background: #090d16; }
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
-        /* Chat UI */
         .chat-header-bar { background: #111827; padding: 14px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
         .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: #0b0f19; }
         
@@ -199,7 +221,6 @@ FULL_UI_HTML = """
 </head>
 <body>
 
-    <!-- AUTH GATEWAY MODAL -->
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
             <h1>⚡ CYBER MESSENGER</h1>
@@ -211,21 +232,18 @@ FULL_UI_HTML = """
                 <button class="tab-btn" onclick="switchAuthTab('rec')">🛠️ RECOVERY</button>
             </div>
 
-            <!-- LOGIN -->
             <div class="auth-form active" id="form-login">
                 <input type="text" id="l_u" placeholder="Username">
                 <input type="password" id="l_p" placeholder="Password">
                 <button class="auth-btn" onclick="apiLogin()">LOGIN 🚀</button>
             </div>
 
-            <!-- REGISTER -->
             <div class="auth-form" id="form-reg">
                 <input type="text" id="r_u" placeholder="Username">
                 <input type="password" id="r_p" placeholder="Password (8+ chars)">
                 <button class="auth-btn" onclick="apiRegister()">CREATE ACCOUNT ✨</button>
             </div>
 
-            <!-- RECOVERY -->
             <div class="auth-form" id="form-rec">
                 <input type="text" id="rec_u" placeholder="Username">
                 <input type="text" id="rec_k" placeholder="Recovery Key (XXXX-XXXX)">
@@ -237,7 +255,6 @@ FULL_UI_HTML = """
         </div>
     </div>
 
-    <!-- SIDEBAR -->
     <div class="sidebar">
         <div class="sidebar-profile">
             <div class="avatar-circle" id="user-avatar-disp">👤</div>
@@ -263,10 +280,8 @@ FULL_UI_HTML = """
         <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
     </div>
 
-    <!-- MAIN DISPLAY AREAS -->
     <div class="main-container">
 
-        <!-- DASHBOARD -->
         <div class="page-content active" id="page-dashboard">
             <h3 style="margin-bottom:20px;">📊 System Overview</h3>
             <div style="display:flex; gap:15px; margin-bottom:20px;">
@@ -277,7 +292,6 @@ FULL_UI_HTML = """
             <button class="auth-btn" style="width: auto; padding: 12px 24px;" onclick="showPage('messages', document.querySelectorAll('.nav-btn')[1])">💬 Open Chat Room</button>
         </div>
 
-        <!-- MESSAGES -->
         <div class="page-content" id="page-messages">
             <div class="chat-header-bar">
                 <div style="display:flex; align-items:center; gap:14px;">
@@ -302,25 +316,21 @@ FULL_UI_HTML = """
             </div>
         </div>
 
-        <!-- FRIENDS -->
         <div class="page-content" id="page-friends">
             <h3>👥 Friend Management</h3>
             <p style="color:#94a3b8; margin-top:10px;">Search users or manage requests...</p>
         </div>
 
-        <!-- PROFILE -->
         <div class="page-content" id="page-profile">
             <h3>👤 Profile Customization</h3>
             <p style="color:#94a3b8; margin-top:10px;">Status and Bio customization ready.</p>
         </div>
 
-        <!-- BLOCKLIST -->
         <div class="page-content" id="page-blocklist">
             <h3>🚫 Blocklist Management</h3>
             <p style="color:#94a3b8; margin-top:10px;">No blocked users.</p>
         </div>
 
-        <!-- SETTINGS -->
         <div class="page-content" id="page-settings">
             <h3>⚙️ Account Security Settings</h3>
             <p style="color:#94a3b8; margin-top:10px;">Security and keys status: ACTIVE</p>
@@ -362,7 +372,7 @@ FULL_UI_HTML = """
             }
 
             try {
-                const res = await fetch('/api/login', {
+                const res = await fetch(window.location.origin + '/api/login', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username: u, password: p})
@@ -390,7 +400,7 @@ FULL_UI_HTML = """
             }
 
             try {
-                const res = await fetch('/api/register', {
+                const res = await fetch(window.location.origin + '/api/register', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username: u, password: p})
@@ -398,7 +408,7 @@ FULL_UI_HTML = """
                 const data = await res.json();
                 if(res.ok && data.status === "success") {
                     msgEl.style.color = "#10b981";
-                    msgEl.innerText = `تم إنشاء الحساب! ID: ${data.user_id} | احفظ مفتاح الاستعادة: ${data.recovery_key}`;
+                    msgEl.innerText = `تم إنشاء الحساب! ID: ${data.user_id} | مفتاح الاستعادة: ${data.recovery_key}`;
                 } else {
                     msgEl.style.color = "#ef4444";
                     msgEl.innerText = data.detail || "فشل إنشاء الحساب";
@@ -416,7 +426,7 @@ FULL_UI_HTML = """
             const msgEl = document.getElementById('auth-msg');
 
             try {
-                const res = await fetch('/api/recover', {
+                const res = await fetch(window.location.origin + '/api/recover', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username: u, recovery_key: k, new_password: p})
@@ -505,7 +515,7 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
             recipient = data.get("recipient")
             content = data.get("message")
 
-            if content and recipient:
+            if content and recipient and supabase:
                 enc_content = cipher.encrypt(content.encode()).decode()
                 msg_id = secrets.token_hex(8)
 
