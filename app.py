@@ -147,7 +147,7 @@ async def search_users(q: str):
     matches = [u for u in res.data if q.lower() in u["username"].lower() or q.upper() in u.get("user_id", "")]
     return {"status": "success", "users": matches}
 
-# --- FRIEND REQUESTS SYSTEM ---
+# --- FRIENDS & BLOCK SYSTEM ---
 @app.post("/api/send_request")
 async def send_request(data: dict):
     username = data.get("username")
@@ -168,7 +168,7 @@ async def send_request(data: dict):
 async def respond_request(data: dict):
     username = data.get("username")
     requester = data.get("requester")
-    action = data.get("action") # "accept" or "decline"
+    action = data.get("action")
     
     u_data = supabase.table("users").select("friends, friend_requests").eq("username", username).execute().data[0]
     reqs = u_data.get("friend_requests") or []
@@ -180,7 +180,6 @@ async def respond_request(data: dict):
     if action == "accept":
         if requester not in friends:
             friends.append(requester)
-        # Add to requester's friends list as well
         r_data = supabase.table("users").select("friends").eq("username", requester).execute().data[0]
         r_friends = r_data.get("friends") or []
         if username not in r_friends:
@@ -188,6 +187,28 @@ async def respond_request(data: dict):
             supabase.table("users").update({"friends": r_friends}).eq("username", requester).execute()
 
     supabase.table("users").update({"friends": friends, "friend_requests": reqs}).eq("username", username).execute()
+    return {"status": "success"}
+
+@app.post("/api/block_user")
+async def block_user(data: dict):
+    username = data.get("username")
+    target_name = data.get("target_name")
+    action = data.get("action") # "block" or "unblock"
+
+    u_data = supabase.table("users").select("friends, blocked").eq("username", username).execute().data[0]
+    friends = u_data.get("friends") or []
+    blocked = u_data.get("blocked") or []
+
+    if action == "block":
+        if target_name not in blocked:
+            blocked.append(target_name)
+        if target_name in friends:
+            friends.remove(target_name)
+    elif action == "unblock":
+        if target_name in blocked:
+            blocked.remove(target_name)
+
+    supabase.table("users").update({"friends": friends, "blocked": blocked}).eq("username", username).execute()
     return {"status": "success"}
 
 # --- FULL REALTIME INTERFACE ---
@@ -235,6 +256,13 @@ FULL_UI_HTML = """
         .form-card input, .form-card textarea { width: 100%; padding: 10px; background: #090d16; border: 1px solid #334155; border-radius: 8px; color: #fff; margin-bottom: 10px; outline: none; }
         .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
         
+        .section-tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; }
+        .sec-tab-btn { background: rgba(30, 41, 59, 0.5); color: #94a3b8; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .sec-tab-btn.active { background: #2563eb; color: #fff; }
+
+        .sec-sub-page { display: none; }
+        .sec-sub-page.active { display: block; }
+
         .chat-header-bar { background: #111827; padding: 14px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
         .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: #0b0f19; }
         .msg-wrapper { display: flex; width: 100%; }
@@ -284,7 +312,7 @@ FULL_UI_HTML = """
         <hr style="border:0.5px solid rgba(255,255,255,0.08); margin: 10px 0;">
         <button class="nav-btn active" onclick="showPage('dashboard', this)">🏠 Dashboard</button>
         <button class="nav-btn" onclick="showPage('messages', this)">💬 Messages</button>
-        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends</button>
+        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends Hub</button>
         <button class="nav-btn" onclick="showPage('profile', this)">👤 Profile</button>
         <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
     </div>
@@ -326,24 +354,49 @@ FULL_UI_HTML = """
             </div>
         </div>
 
+        <!-- COMPLETE FRIENDS HUB SECTION -->
         <div class="page-content" id="page-friends">
-            <h3>👥 Friend Management</h3>
+            <h3>👥 Friends Hub</h3>
             
-            <div class="form-card">
-                <h4>🔍 Search & Add Users</h4>
-                <input type="text" id="friend-search-q" placeholder="Search Username or ID (#A123)..." style="margin-top:8px;">
-                <button class="auth-btn" style="width:100%;" onclick="searchFriends()">Search 🔍</button>
-                <div id="search-results" style="margin-top:15px;"></div>
+            <div class="section-tabs" style="margin-top:15px;">
+                <button class="sec-tab-btn active" onclick="switchFriendsTab('list', this)">👥 My Friends</button>
+                <button class="sec-tab-btn" onclick="switchFriendsTab('reqs', this)">📩 Requests</button>
+                <button class="sec-tab-btn" onclick="switchFriendsTab('search', this)">🔍 Search Users</button>
+                <button class="sec-tab-btn" onclick="switchFriendsTab('blocked', this)">🚫 Blocked Users</button>
             </div>
 
-            <div class="form-card" style="margin-top:15px;">
-                <h4>📩 Pending Friend Requests</h4>
-                <div id="pending-requests-list" style="margin-top:10px;"></div>
+            <!-- TAB 1: FRIENDS LIST -->
+            <div class="sec-sub-page active" id="sub-friends-list">
+                <div class="form-card">
+                    <h4>My Active Friends</h4>
+                    <div id="my-friends-container" style="margin-top:10px;"></div>
+                </div>
             </div>
 
-            <div class="form-card" style="margin-top:15px;">
-                <h4>👥 My Friends List</h4>
-                <div id="my-friends-list" style="margin-top:10px;"></div>
+            <!-- TAB 2: PENDING REQUESTS -->
+            <div class="sec-sub-page" id="sub-friends-reqs">
+                <div class="form-card">
+                    <h4>Pending Friend Requests</h4>
+                    <div id="pending-requests-container" style="margin-top:10px;"></div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SEARCH & ADD -->
+            <div class="sec-sub-page" id="sub-friends-search">
+                <div class="form-card">
+                    <h4>Search Users by Name or ID</h4>
+                    <input type="text" id="friend-search-q" placeholder="Type Username or #ID..." style="margin-top:8px;">
+                    <button class="auth-btn" style="width:100%;" onclick="searchFriends()">Search 🔍</button>
+                    <div id="search-results-container" style="margin-top:15px;"></div>
+                </div>
+            </div>
+
+            <!-- TAB 4: BLOCKED USERS -->
+            <div class="sec-sub-page" id="sub-friends-blocked">
+                <div class="form-card">
+                    <h4>Blocked List</h4>
+                    <div id="blocked-users-container" style="margin-top:10px;"></div>
+                </div>
             </div>
         </div>
 
@@ -411,7 +464,7 @@ FULL_UI_HTML = """
             if(res.ok) {
                 userData = data.user;
                 updateUIProfile();
-                renderRequestsAndFriends();
+                renderAllFriendsHubData();
             }
         }
 
@@ -453,12 +506,20 @@ FULL_UI_HTML = """
             }
         }
 
+        function switchFriendsTab(tabName, btnEl) {
+            document.querySelectorAll('.sec-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.sec-sub-page').forEach(p => p.classList.remove('active'));
+
+            document.getElementById('sub-friends-' + tabName).classList.add('active');
+            btnEl.classList.add('active');
+        }
+
         async function searchFriends() {
             const q = document.getElementById('friend-search-q').value.trim();
             if(!q) return;
             const res = await fetch(`/api/search_users?q=${encodeURIComponent(q)}`);
             const data = await res.json();
-            const box = document.getElementById('search-results');
+            const box = document.getElementById('search-results-container');
             box.innerHTML = "";
             data.users.forEach(u => {
                 if(u.username !== userData.username) {
@@ -481,21 +542,36 @@ FULL_UI_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: userData.username, target_name: tname})
             });
-            if(res.ok) {
-                alert("Friend Request Sent!");
-            }
+            if(res.ok) alert("Request Sent!");
         }
 
-        function renderRequestsAndFriends() {
-            // Render Pending Requests
-            const reqBox = document.getElementById('pending-requests-list');
-            reqBox.innerHTML = "";
+        function renderAllFriendsHubData() {
+            // 1. Render Friends
+            const fBox = document.getElementById('my-friends-container');
+            fBox.innerHTML = "";
+            const flist = userData.friends || [];
+            if(flist.length === 0) fBox.innerHTML = "<p style='color:#94a3b8;'>No friends added yet.</p>";
+            else {
+                flist.forEach(f => {
+                    fBox.innerHTML += `
+                    <div class="user-card">
+                        <div><strong>${f}</strong></div>
+                        <div>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}', 'block')">🚫 Block</button>
+                        </div>
+                    </div>`;
+                });
+            }
+
+            // 2. Render Pending Requests
+            const rBox = document.getElementById('pending-requests-container');
+            rBox.innerHTML = "";
             const reqs = userData.friend_requests || [];
-            if(reqs.length === 0) {
-                reqBox.innerHTML = "<p style='color:#94a3b8;'>No pending requests.</p>";
-            } else {
+            if(reqs.length === 0) rBox.innerHTML = "<p style='color:#94a3b8;'>No pending requests.</p>";
+            else {
                 reqs.forEach(r => {
-                    reqBox.innerHTML += `
+                    rBox.innerHTML += `
                     <div class="user-card">
                         <div><strong>${r}</strong> sent you a request</div>
                         <div>
@@ -506,18 +582,17 @@ FULL_UI_HTML = """
                 });
             }
 
-            // Render Friends List
-            const fBox = document.getElementById('my-friends-list');
-            fBox.innerHTML = "";
-            const flist = userData.friends || [];
-            if(flist.length === 0) {
-                fBox.innerHTML = "<p style='color:#94a3b8;'>No friends added yet.</p>";
-            } else {
-                flist.forEach(f => {
-                    fBox.innerHTML += `
+            // 3. Render Blocked Users
+            const bBox = document.getElementById('blocked-users-container');
+            bBox.innerHTML = "";
+            const blist = userData.blocked || [];
+            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>No blocked users.</p>";
+            else {
+                blist.forEach(b => {
+                    bBox.innerHTML += `
                     <div class="user-card">
-                        <div><strong>${f}</strong></div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat Direct</button>
+                        <div><strong>${b}</strong></div>
+                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="blockUser('${b}', 'unblock')">Unblock ✅</button>
                     </div>`;
                 });
             }
@@ -529,9 +604,16 @@ FULL_UI_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: userData.username, requester: reqName, action: action})
             });
-            if(res.ok) {
-                refreshUserData();
-            }
+            if(res.ok) refreshUserData();
+        }
+
+        async function blockUser(tname, action) {
+            const res = await fetch('/api/block_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, target_name: tname, action: action})
+            });
+            if(res.ok) refreshUserData();
         }
 
         function startChat(fname) {
