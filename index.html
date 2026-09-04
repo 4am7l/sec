@@ -244,7 +244,7 @@
         let isBurnMode = false;
         let mediaRecorder = null;
         let audioChunks = [];
-        let processedMsgIds = new Set(); // لتجنب تكرار عرض الرسائل
+        let processedMsgIds = new Set();
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -468,7 +468,7 @@
 
         async function openChatWith(friendName, el) {
             selectedChatFriend = friendName;
-            processedMsgIds.clear(); // تفريغ الذاكرة المؤقتة للرسائل عند تغيير الشات
+            processedMsgIds.clear();
             document.querySelectorAll('.friend-item').forEach(i => i.classList.remove('active'));
             if(el) el.classList.add('active');
 
@@ -593,17 +593,17 @@
             document.getElementById('file-input').value = "";
 
             try {
+                // إرسال للسيرفر فقط، والاعتماد بالكامل على استلام الـ WebSocket أو الجلب لتفادي أي تكرار
                 await fetch('/api/send_message_http', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
-                // ملاحظة: لا نعرض الرسالة هنا محلياً، نترك الـ WebSocket يوزعها ويستقبلها مرة واحدة فقط لمنع التكرار
             } catch(e) {}
         }
 
         function appendParsedBubble(msgId, sender, rawContent, time) {
-            if (msgId && processedMsgIds.has(msgId)) return; // إذا تم عرض هذه الرسالة من قبل، لا تعرضها مرة أخرى
+            if (msgId && processedMsgIds.has(msgId)) return;
             if (msgId) processedMsgIds.add(msgId);
 
             let textPart = rawContent || '';
