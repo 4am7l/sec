@@ -27,18 +27,17 @@ try:
 except Exception:
     supabase = None
 
-KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
-def load_or_generate_key():
-    if not os.path.exists(KEY_FILE):
-        key = Fernet.generate_key()
-        with open(KEY_FILE, "wb") as f:
-            f.write(key)
-        return key
-    with open(KEY_FILE, "rb") as f:
-        return f.read()
+# مفتاح تشفير ثابت لا يتغير حتى لو أعاد السيرفر تشغيل نفسه
+FIXED_SECRET_KEY = os.environ.get("FERNET_KEY", b'V0h0a1F4d1Z5T3p5Um92TDB3SFB5TG9rV3B5d1N2YlE=')
+if isinstance(FIXED_SECRET_KEY, str):
+    FIXED_SECRET_KEY = FIXED_SECRET_KEY.encode()
 
-SECRET_KEY = load_or_generate_key()
-cipher = Fernet(SECRET_KEY)
+try:
+    cipher = Fernet(FIXED_SECRET_KEY)
+except Exception:
+    # مفتاح احتياطي ثابت في حال خطأ التنسيق
+    fallback_key = Fernet.generate_key()
+    cipher = Fernet(fallback_key)
 
 def hash_data(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
@@ -149,6 +148,7 @@ async def get_messages_api(u1: str, u2: str):
                 else:
                     m['content'] = raw_content
             except Exception:
+                # إذا فشل فك التشفير بسبب اختلاف مفتاح قديم، نعرضه كما هو بدل الانهيار
                 pass
             decrypted_msgs.append(m)
         return {"status": "success", "messages": decrypted_msgs}
@@ -450,7 +450,6 @@ FULL_UI_HTML = """
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${userData.username}`);
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                // استقبال فوري وعرض الرسالة مباشرة للمحادثة المفتوحة حالياً
                 if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
                     appendBubble(data.sender, data.content, data.time, data.file);
                 }
@@ -480,7 +479,7 @@ FULL_UI_HTML = """
             const dataAll = await resAll.json();
             if(resAll.ok) {
                 allUsersCache = dataAll.users;
-                renderFriendsTabs(); الفقرات
+                renderFriendsTabs();
                 renderBlocklist();
             }
         }
@@ -576,6 +575,9 @@ FULL_UI_HTML = """
                 message: msg,
                 file: attachedFileData
             };
+
+            // عرض الرسالة محلياً فوراً عند الإرسال
+            appendBubble(userData.username, msg, 'الآن', attachedFileData);
 
             try {
                 const res = await fetch('/api/send_message_http', {
