@@ -188,6 +188,8 @@ async def send_message_http(data: dict):
         "file": file_data,
         "time": "الآن"
     }
+    
+    # بث الرسالة للطرفين عبر الـ WebSocket
     await manager.send_to_user(recipient, msg_out)
     await manager.send_to_user(sender, msg_out)
 
@@ -445,6 +447,7 @@ FULL_UI_HTML = """
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${userData.username}`);
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
+                // استقبال فوري لأي رسالة تخص المحادثة الحالية
                 if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
                     appendBubble(data.sender, data.content, data.time, data.file);
                 }
