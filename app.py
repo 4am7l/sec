@@ -207,6 +207,15 @@ async def send_message_http(data: dict):
 async def update_user(data: dict):
     username = data.get("username")
     updates = data.get("updates", {})
+    
+    # منع تكرار الأصدقاء وقوائم الطلبات والحظر جذرياً عبر دمجها بـ Set
+    if "friends" in updates and isinstance(updates["friends"], list):
+        updates["friends"] = list(set(updates["friends"]))
+    if "friend_requests" in updates and isinstance(updates["friend_requests"], list):
+        updates["friend_requests"] = list(set(updates["friend_requests"]))
+    if "blocked" in updates and isinstance(updates["blocked"], list):
+        updates["blocked"] = list(set(updates["blocked"]))
+
     try:
         supabase.table("users").update(updates).eq("username", username).execute()
         res = supabase.table("users").select("*").eq("username", username).execute()
@@ -533,6 +542,10 @@ FULL_UI_HTML = """
 
         function initUserSession(user) {
             userData = user;
+            // تصفية أصدقاء المستخدم محلياً لمنع أي تكرار قديم
+            if(userData.friends) {
+                userData.friends = [...new Set(userData.friends)];
+            }
             updateUIProfile();
             document.getElementById('auth-modal').style.display = 'none';
             connectWebSocket();
@@ -546,6 +559,11 @@ FULL_UI_HTML = """
                 const data = await res.json();
                 if(res.ok && data.user) {
                     userData = data.user;
+                    // تنظيف القوائم لمنع تكرار الأصدقاء أو الطلبات
+                    if(userData.friends) userData.friends = [...new Set(userData.friends)];
+                    if(userData.friend_requests) userData.friend_requests = [...new Set(userData.friend_requests)];
+                    if(userData.blocked) userData.blocked = [...new Set(userData.blocked)];
+
                     updateUIProfile();
                     renderChatFriendsSidebar();
                 }
@@ -586,8 +604,8 @@ FULL_UI_HTML = """
             document.getElementById('user-avatar-disp').innerHTML = avatarHtml;
             document.getElementById('prof-avatar-preview').innerHTML = avatarHtml;
 
-            const flist = userData.friends || [];
-            const rlist = userData.friend_requests || [];
+            const flist = userData.friends ? [...new Set(userData.friends)] : [];
+            const rlist = userData.friend_requests ? [...new Set(userData.friend_requests)] : [];
             document.getElementById('dash-friends-count').innerText = flist.length;
             document.getElementById('dash-reqs-count').innerText = rlist.length;
         }
@@ -637,7 +655,7 @@ FULL_UI_HTML = """
         function renderChatFriendsSidebar() {
             const box = document.getElementById('chat-friends-list');
             box.innerHTML = "";
-            const flist = userData.friends || [];
+            const flist = userData.friends ? [...new Set(userData.friends)] : [];
             if(flist.length === 0) {
                 box.innerHTML = "<p style='color:#94a3b8; font-size:0.85em;'>لا يوجد أصدقاء بعد.</p>";
             } else {
@@ -670,7 +688,10 @@ FULL_UI_HTML = """
                 chatBox.innerHTML = "";
 
                 if(res.ok && data.messages && data.messages.length > 0) {
-                    data.messages.forEach(m => {
+                    // تصفية الرسائل المكررة بناءً على الـ ID لمنع تكرار عرض المحادثات
+                    const uniqueMessages = Array.from(new Map(data.messages.map(m => [m.id, m])).values());
+                    
+                    uniqueMessages.forEach(m => {
                         appendParsedBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن');
                     });
                 } else {
@@ -785,7 +806,7 @@ FULL_UI_HTML = """
             allUsersCache.forEach(u => {
                 if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || (u.display_name && u.display_name.toLowerCase().includes(q)) || (u.user_id && u.user_id.toLowerCase().includes(q)))) {
                     const isFriend = (userData.friends || []).includes(u.username);
-                    const isPending = (u.friend_requests || []).includes(u.username);
+                    const isPending = (userData.friend_requests || []).includes(u.username);
                     const ud = getUserDetails(u.username);
 
                     let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
@@ -814,6 +835,7 @@ FULL_UI_HTML = """
             const uObj = allUsersCache.find(x => x.username === uname);
             let reqs = uObj.friend_requests || [];
             if(!reqs.includes(userData.username)) reqs.push(userData.username);
+            reqs = [...new Set(reqs)];
 
             await fetch('/api/update_user', {
                 method: 'POST',
@@ -827,7 +849,7 @@ FULL_UI_HTML = """
         function renderFriendsTabs() {
             const myfBox = document.getElementById('my-friends-tab-list');
             myfBox.innerHTML = "";
-            const flist = userData.friends || [];
+            const flist = userData.friends ? [...new Set(userData.friends)] : [];
             if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد أصدقاء حالياً.</p>";
             else {
                 flist.forEach(f => {
@@ -850,7 +872,7 @@ FULL_UI_HTML = """
 
             const reqBox = document.getElementById('requests-tab-list');
             reqBox.innerHTML = "";
-            const reqs = userData.friend_requests || [];
+            const reqs = userData.friend_requests ? [...new Set(userData.friend_requests)] : [];
             if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد طلبات معلقة.</p>";
             else {
                 reqs.forEach(r => {
@@ -876,9 +898,10 @@ FULL_UI_HTML = """
         }
 
         async function acceptReq(rUser) {
-            let myF = userData.friends || [];
-            let myR = userData.friend_requests || [];
+            let myF = userData.friends ? [...new Set(userData.friends)] : [];
+            let myR = userData.friend_requests ? [...new Set(userData.friend_requests)] : [];
             myF.push(rUser);
+            myF = [...new Set(myF)];
             myR = myR.filter(x => x !== rUser);
 
             await fetch('/api/update_user', {
@@ -888,8 +911,10 @@ FULL_UI_HTML = """
             });
 
             const rObj = allUsersCache.find(x => x.username === rUser);
-            let rF = rObj ? (rObj.friends || []) : [];
+            let rF = rObj && rObj.friends ? [...new Set(rObj.friends)] : [];
             rF.push(userData.username);
+            rF = [...new Set(rF)];
+
             await fetch('/api/update_user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -900,7 +925,7 @@ FULL_UI_HTML = """
         }
 
         async function declineReq(rUser) {
-            let myR = (userData.friend_requests || []).filter(x => x !== rUser);
+            let myR = userData.friend_requests ? userData.friend_requests.filter(x => x !== rUser) : [];
             await fetch('/api/update_user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -910,7 +935,7 @@ FULL_UI_HTML = """
         }
 
         async function unfriend(fUser) {
-            let myF = (userData.friends || []).filter(x => x !== fUser);
+            let myF = userData.friends ? userData.friends.filter(x => x !== fUser) : [];
             await fetch('/api/update_user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -920,8 +945,8 @@ FULL_UI_HTML = """
         }
 
         async function blockUser(fUser) {
-            let myB = userData.blocked || [];
-            let myF = (userData.friends || []).filter(x => x !== fUser);
+            let myB = userData.blocked ? [...new Set(userData.blocked)] : [];
+            let myF = userData.friends ? userData.friends.filter(x => x !== fUser) : [];
             if(!myB.includes(fUser)) myB.push(fUser);
 
             await fetch('/api/update_user', {
@@ -936,7 +961,7 @@ FULL_UI_HTML = """
             const bBox = document.getElementById('blocklist-container');
             if(!bBox) return;
             bBox.innerHTML = "";
-            const blist = userData.blocked || [];
+            const blist = userData.blocked ? [...new Set(userData.blocked)] : [];
             if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد مستخدمين محظورين.</p>";
             else {
                 blist.forEach(b => {
@@ -954,7 +979,7 @@ FULL_UI_HTML = """
         }
 
         async function unblock(bUser) {
-            let myB = (userData.blocked || []).filter(x => x !== bUser);
+            let myB = userData.blocked ? userData.blocked.filter(x => x !== bUser) : [];
             await fetch('/api/update_user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
