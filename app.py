@@ -1120,7 +1120,7 @@ async def get_index():
     return FULL_UI_HTML
 
 @app.websocket("/ws/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: `str`):
+async def websocket_endpoint(websocket: WebSocket, username: str):
     await manager.connect(username, websocket)
     try:
         while True:
