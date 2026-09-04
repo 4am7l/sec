@@ -5,7 +5,6 @@ import os
 import secrets
 import hashlib
 import string
-import base64
 from cryptography.fernet import Fernet
 from supabase import create_client, Client
 
@@ -130,6 +129,22 @@ async def get_all_users_api():
     res = supabase.table("users").select("username, user_id, bio, status_text, status_icon, avatar, friend_requests, friends").execute()
     return {"status": "success", "users": res.data}
 
+@app.get("/api/get_messages/{u1}/{u2}")
+async def get_messages_api(u1: str, u2: str):
+    res1 = supabase.table("messages").select("*").eq("sender", u1).eq("recipient", u2).execute().data
+    res2 = supabase.table("messages").select("*").eq("sender", u2).eq("recipient", u1).execute().data
+    all_msgs = res1 + res2
+    all_msgs.sort(key=lambda x: x.get("created_at", ""))
+    
+    decrypted_msgs = []
+    for m in all_msgs:
+        try:
+            m['content'] = cipher.decrypt(m['content'].encode()).decode()
+        except Exception:
+            m['content'] = "[Decryption Failed]"
+        decrypted_msgs.append(m)
+    return {"status": "success", "messages": decrypted_msgs}
+
 @app.post("/api/update_user")
 async def update_user(data: dict):
     username = data.get("username")
@@ -138,7 +153,7 @@ async def update_user(data: dict):
     res = supabase.table("users").select("*").eq("username", username).execute()
     return {"status": "success", "user": res.data[0]}
 
-# --- UI INTERFACE ---
+# --- FULL REALTIME INTERFACE ---
 FULL_UI_HTML = """
 <!DOCTYPE html>
 <html lang="en">
@@ -165,10 +180,9 @@ FULL_UI_HTML = """
         .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; }
         .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; }
 
-        .sidebar { width: 310px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .sidebar { width: 300px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
         .sidebar-profile { text-align: center; }
-        .avatar-circle { width: 85px; height: 85px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 32px; margin: 0 auto 10px auto; overflow: hidden; }
-        .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-circle { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 30px; margin: 0 auto 10px auto; overflow: hidden; }
         
         .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; margin-bottom: 6px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; }
@@ -177,29 +191,36 @@ FULL_UI_HTML = """
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
+        /* Chat Layout */
+        .chat-container-layout { flex: 1; display: flex; gap: 15px; height: calc(100vh - 120px); }
+        .friends-sidebar { width: 260px; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 15px; overflow-y: auto; }
+        .friend-item { padding: 12px; background: #090d16; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+        .friend-item:hover, .friend-item.active { background: #2563eb; border-color: #3b82f6; }
+
+        .chat-main-area { flex: 1; display: flex; flex-direction: column; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px; }
+        .chat-header-bar { padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; background: #0b0f19; border-radius: 14px; }
+        
+        .msg-wrapper { display: flex; width: 100%; }
+        .msg-wrapper.sent { justify-content: flex-end; }
+        .msg-wrapper.received { justify-content: flex-start; }
+        .insta-bubble { max-width: 68%; padding: 10px 14px; border-radius: 16px; font-size: 0.95em; word-break: break-word; }
+        .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; }
+        .received .insta-bubble { background: #1e293b; color: #f1f5f9; }
+
+        .input-bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+        .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 14px; color: #fff; outline: none; height: 45px; resize: none; font-size: 0.95em; }
+        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 20px; height: 45px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .attach-btn { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); padding: 0 14px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2em; }
+
         .st-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; }
         .st-tab-btn { background: rgba(30, 41, 59, 0.5); color: #94a3b8; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .st-tab-btn.active { background: #2563eb; color: #fff; }
-
         .st-tab-content { display: none; }
         .st-tab-content.active { display: block; }
 
         .user-card { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
         .card-box { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
-
-        .chat-header-bar { background: #111827; padding: 14px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
-        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; background: #0b0f19; border-radius: 16px; }
-        .msg-wrapper { display: flex; width: 100%; }
-        .msg-wrapper.sent { justify-content: flex-end; }
-        .msg-wrapper.received { justify-content: flex-start; }
-        .insta-bubble { max-width: 68%; padding: 12px 16px; border-radius: 18px; font-size: 0.95em; line-height: 1.45; word-break: break-word; }
-        .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; }
-        .received .insta-bubble { background: #1e293b; color: #f1f5f9; }
-
-        .input-bar { background: #111827; padding: 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-        .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 14px; color: #fff; outline: none; height: 45px; resize: none; font-size: 0.95em; }
-        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 20px; height: 45px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        .attach-label { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); padding: 0 14px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2em; }
     </style>
 </head>
 <body>
@@ -231,7 +252,6 @@ FULL_UI_HTML = """
             <div class="avatar-circle" id="user-avatar-disp">👤</div>
             <h3 id="user-name-disp" style="color:#f8fafc; font-weight:700;">User</h3>
             <p id="user-status-disp" style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"Available"</p>
-            <span style="background:#2563eb; color:#ffffff; padding:3px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;" id="user-role-disp">USER</span>
         </div>
         <small style="color:#94a3b8;">Your Permanent ID:</small>
         <div style="background:#090d16; padding:8px; border-radius:8px; font-family:monospace; color:#3b82f6;" id="user-id-disp">#0000</div>
@@ -255,22 +275,32 @@ FULL_UI_HTML = """
             </div>
         </div>
 
+        <!-- 💬 MESSAGES PAGE WITH DIRECT FRIEND LIST SELECTION -->
         <div class="page-content" id="page-messages">
-            <div class="chat-header-bar">
-                <div><strong id="target-disp-name">Select Friend to Chat</strong></div>
-                <span style="background:#059669; color:#fff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted</span>
-            </div>
-            <input type="text" id="target-user-input" placeholder="Recipient Username..." style="padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; width:260px; outline:none; margin-bottom:10px;">
-            
-            <div class="chat-message-container" id="chat-box"></div>
+            <div class="chat-container-layout">
+                
+                <div class="friends-sidebar">
+                    <h4 style="margin-bottom:12px; color:#60a5fa;">💬 Friends List</h4>
+                    <div id="chat-friends-list"></div>
+                </div>
 
-            <div id="file-preview-name" style="font-size:0.8em; color:#60a5fa; margin-top:4px; display:none;"></div>
+                <div class="chat-main-area">
+                    <div class="chat-header-bar">
+                        <div><strong id="target-disp-name">Select a Friend to Start Chatting</strong></div>
+                        <span style="background:#059669; color:#fff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted</span>
+                    </div>
 
-            <div class="input-bar">
-                <label class="attach-label" for="file-input">📎</label>
-                <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
-                <textarea id="msg-input" placeholder="Write a message..." onkeydown="handleEnterKey(event)"></textarea>
-                <button class="send-btn" onclick="sendMsg()">SEND 🚀</button>
+                    <div class="chat-message-container" id="chat-box"></div>
+                    <div id="file-preview-name" style="font-size:0.8em; color:#60a5fa; margin-top:4px; display:none;"></div>
+
+                    <div class="input-bar">
+                        <label class="attach-btn" for="file-input">📎</label>
+                        <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
+                        <textarea id="msg-input" placeholder="Write a message..." onkeydown="handleEnterKey(event)"></textarea>
+                        <button class="send-btn" onclick="sendMsg()">SEND 🚀</button>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -321,6 +351,7 @@ FULL_UI_HTML = """
     <script>
         let ws = null;
         let userData = null;
+        let selectedChatFriend = null;
         let allUsersCache = [];
         let attachedFileData = null;
 
@@ -371,7 +402,10 @@ FULL_UI_HTML = """
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${userData.username}`);
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                appendBubble(data.sender, data.content, data.time, data.file);
+                if ((data.sender === selectedChatFriend && data.recipient === userData.username) || 
+                    (data.sender === userData.username && data.recipient === selectedChatFriend)) {
+                    appendBubble(data.sender, data.content, data.time, data.file);
+                }
             };
             refreshUserData();
         }
@@ -382,6 +416,7 @@ FULL_UI_HTML = """
             if(res.ok) {
                 userData = data.user;
                 updateUIProfile();
+                renderChatFriendsSidebar();
             }
             const resAll = await fetch('/api/get_all_users');
             const dataAll = await resAll.json();
@@ -405,11 +440,39 @@ FULL_UI_HTML = """
             document.getElementById('dash-reqs-count').innerText = rlist.length;
         }
 
-        function switchStTab(tabId, btnEl) {
-            document.querySelectorAll('.st-tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.st-tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById('tab-' + tabId).classList.add('active');
-            btnEl.classList.add('active');
+        function renderChatFriendsSidebar() {
+            const box = document.getElementById('chat-friends-list');
+            box.innerHTML = "";
+            const flist = userData.friends || [];
+            if(flist.length === 0) {
+                box.innerHTML = "<p style='color:#94a3b8; font-size:0.85em;'>No friends added yet.</p>";
+            } else {
+                flist.forEach(f => {
+                    const activeCls = (selectedChatFriend === f) ? "active" : "";
+                    box.innerHTML += `<div class="friend-item ${activeCls}" onclick="openChatWith('${f}', this)"><strong>👤 ${f}</strong></div>`;
+                });
+            }
+        }
+
+        async function openChatWith(friendName, el) {
+            selectedChatFriend = friendName;
+            document.querySelectorAll('.friend-item').forEach(i => i.classList.remove('active'));
+            if(el) el.classList.add('active');
+
+            document.getElementById('target-disp-name').innerText = `Chatting with: ${friendName}`;
+            
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML = "<p style='color:#94a3b8;'>Loading history...</p>";
+
+            const res = await fetch(`/api/get_messages/${userData.username}/${friendName}`);
+            const data = await res.json();
+            chatBox.innerHTML = "";
+
+            if(res.ok && data.messages) {
+                data.messages.forEach(m => {
+                    appendBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'NOW', null);
+                });
+            }
         }
 
         function handleEnterKey(e) {
@@ -438,18 +501,18 @@ FULL_UI_HTML = """
 
         function sendMsg() {
             const input = document.getElementById("msg-input");
-            const target = document.getElementById("target-user-input").value.trim();
             const msg = input.value.trim();
 
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Session Disconnected! Please relogin.");
-            if(!target) return alert("Please specify target username.");
+            if(!selectedChatFriend) return alert("Please select a friend from the list first!");
             if(!msg && !attachedFileData) return;
 
-            ws.send(JSON.stringify({
-                recipient: target,
-                message: msg,
-                file: attachedFileData
-            }));
+            if(ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    recipient: selectedChatFriend,
+                    message: msg,
+                    file: attachedFileData
+                }));
+            }
 
             input.value = "";
             attachedFileData = null;
@@ -465,7 +528,7 @@ FULL_UI_HTML = """
 
             let fileHtml = "";
             if (file) {
-                if (file.type.startsWith("image/")) {
+                if (file.type && file.type.startsWith("image/")) {
                     fileHtml = `<br><img src="${file.base64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
                 } else {
                     fileHtml = `<br><a href="${file.base64}" download="${file.name}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 Download ${file.name}</a>`;
@@ -475,6 +538,13 @@ FULL_UI_HTML = """
             wrapper.innerHTML = `<div class="insta-bubble">${content || ''}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'NOW'}</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function switchStTab(tabId, btnEl) {
+            document.querySelectorAll('.st-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.st-tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            btnEl.classList.add('active');
         }
 
         function searchUsersLive() {
@@ -530,7 +600,7 @@ FULL_UI_HTML = """
                     <div class="user-card">
                         <div><strong style="color:#f8fafc;">${f}</strong></div>
                         <div style="display:flex; gap:6px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChatFromFriends('${f}')">💬 Chat</button>
                             <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="unfriend('${f}')">🗑️ Unfriend</button>
                             <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}')">🚫 Block</button>
                         </div>
@@ -554,6 +624,11 @@ FULL_UI_HTML = """
                     </div>`;
                 });
             }
+        }
+
+        function startChatFromFriends(fname) {
+            showPage('messages', document.querySelectorAll('.nav-btn')[1]);
+            openChatWith(fname, null);
         }
 
         async function acceptReq(rUser) {
@@ -639,18 +714,12 @@ FULL_UI_HTML = """
             refreshUserData();
         }
 
-        function startChat(fname) {
-            document.getElementById('target-user-input').value = fname;
-            document.getElementById('target-disp-name').innerText = fname;
-            showPage('messages', document.querySelectorAll('.nav-btn')[1]);
-        }
-
         function showPage(pageId, btnEl) {
             document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('page-' + pageId).classList.add('active');
             if(btnEl) btnEl.classList.add('active');
-            if(pageId === 'friends' || pageId === 'blocklist') refreshUserData();
+            if(pageId === 'friends' || pageId === 'blocklist' || pageId === 'messages') refreshUserData();
         }
 
         async function saveProfile() {
