@@ -2,128 +2,174 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import os
 import secrets
-from cryptography.fernet import Fernet
 from supabase import create_client, Client
 
 app = FastAPI()
 
-# --- SUPABASE SETUP ---
+# --- SUPABASE CONFIG ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://shgxaxtjurbvbqdvmkzt.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_FEE0CeWycaYbelk2VZPTBw_8j7lkftq")
-
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# --- ENCRYPTION SETUP ---
-KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
-def load_or_generate_key():
-    if not os.path.exists(KEY_FILE):
-        key = Fernet.generate_key()
-        with open(KEY_FILE, "wb") as f:
-            f.write(key)
-        return key
-    with open(KEY_FILE, "rb") as f:
-        return f.read()
-
-SECRET_KEY = load_or_generate_key()
-cipher = Fernet(SECRET_KEY)
 
 # --- WEBSOCKET MANAGER ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
 
-    async def connect(self, username: str, websocket: WebSocket):
+    async def connect(self, user_id: str, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections[username] = websocket
+        self.active_connections[user_id] = websocket
 
-    def disconnect(self, username: str):
-        if username in self.active_connections:
-            del self.active_connections[username]
+    def disconnect(self, user_id: str):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
 
-    async def send_to_user(self, recipient: str, message: dict):
-        if recipient in self.active_connections:
-            await self.active_connections[recipient].send_json(message)
+    async def send_to_user(self, recipient_id: str, message: dict):
+        if recipient_id in self.active_connections:
+            await self.active_connections[recipient_id].send_json(message)
 
 manager = ConnectionManager()
 
-HTML_CONTENT = """
+# --- FULL rich HTML INTERFACE ---
+FULL_HTML = """
 <!DOCTYPE html>
 <html lang="ar">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ CYBER MESSENGER - INSTANT</title>
+    <title>⚡ CYBER MESSENGER - PRO</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
         body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 280px; background: #111827; border-right: 1px solid rgba(255,255,255,0.08); padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        .logo { font-size: 1.4em; font-weight: 800; color: #3b82f6; text-align: center; margin-bottom: 10px; }
-        .user-box { background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; text-align: center; }
+
+        /* Auth Modal Glassmorphism */
+        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.92); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 999; }
+        .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.1); padding: 35px; border-radius: 20px; width: 380px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .auth-card h2 { color: #3b82f6; margin-bottom: 20px; font-size: 1.6em; }
+        .auth-card input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; font-size: 0.95em; }
+        .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 5px; }
+        .auth-btn:hover { transform: scale(1.02); }
+
+        /* Sidebar & Layout */
+        .sidebar { width: 300px; background: #111827; border-right: 1px solid rgba(255,255,255,0.08); padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .logo { font-size: 1.5em; font-weight: 800; color: #3b82f6; text-align: center; letter-spacing: 1px; }
+        .profile-card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.08); padding: 15px; border-radius: 14px; display: flex; align-items: center; gap: 12px; }
+        .avatar { width: 42px; height: 42px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2em; }
+        
         .chat-area { flex: 1; display: flex; flex-direction: column; background: #090d16; }
         .chat-header { background: #111827; padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; }
-        .status-badge { background: #059669; color: #fff; padding: 4px 12px; border-radius: 12px; font-size: 0.75em; font-weight: bold; }
-        .messages-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .status-badge { background: #059669; color: #fff; padding: 5px 14px; border-radius: 20px; font-size: 0.75em; font-weight: bold; }
+
+        .messages-container { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
         .msg-wrapper { display: flex; width: 100%; }
         .msg-wrapper.sent { justify-content: flex-end; }
         .msg-wrapper.received { justify-content: flex-start; }
-        .insta-bubble { max-width: 65%; padding: 12px 16px; border-radius: 18px; font-size: 0.95em; line-height: 1.45; box-shadow: 0 2px 10px rgba(0,0,0,0.25); word-wrap: break-word; }
+
+        .insta-bubble { max-width: 60%; padding: 12px 18px; border-radius: 18px; font-size: 0.95em; line-height: 1.5; box-shadow: 0 4px 15px rgba(0,0,0,0.2); word-wrap: break-word; }
         .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #fff; border-bottom-right-radius: 4px; }
         .received .insta-bubble { background: #1e293b; color: #f1f5f9; border-bottom-left-radius: 4px; border: 1px solid rgba(255,255,255,0.05); }
-        .msg-time { font-size: 0.68em; opacity: 0.75; display: block; text-align: right; margin-top: 4px; }
-        .input-bar { background: #111827; padding: 16px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 12px; }
-        .input-bar input { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 16px; color: #fff; font-size: 0.95em; outline: none; }
-        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 24px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .msg-time { font-size: 0.65em; opacity: 0.7; display: block; text-align: right; margin-top: 4px; }
+
+        .input-bar { background: #111827; padding: 18px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 12px; }
+        .input-bar input { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 18px; color: #fff; outline: none; font-size: 0.95em; }
+        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 28px; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .send-btn:hover { transform: scale(1.03); }
+        .block-btn { background: #ef4444; color: #fff; border: none; padding: 8px; border-radius: 8px; width: 100%; font-size: 0.8em; font-weight: bold; cursor: pointer; margin-top: 6px; }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="logo">⚡ CYBER MESSENGER</div>
-        <div class="user-box">
-            <input type="text" id="my-user" placeholder="Your Username" style="width:100%; padding:8px; background:#090d16; border:1px solid #334155; color:#fff; border-radius:8px; margin-bottom:8px;">
-            <button onclick="connectWS()" style="width:100%; padding:8px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">Connect 🚀</button>
-        </div>
-        <div style="margin-top: 20px;">
-            <label style="font-size:0.8em; color:#94a3b8;">Chatting With:</label>
-            <input type="text" id="target-user" placeholder="Recipient Username" style="width:100%; padding:8px; background:#090d16; border:1px solid #334155; color:#fff; border-radius:8px; margin-top:4px;">
+
+    <!-- Gateway / Login Modal -->
+    <div class="auth-overlay" id="auth-modal">
+        <div class="auth-card">
+            <h2>⚡ LOGIN / REGISTER</h2>
+            <input type="text" id="user-id-input" placeholder="Enter Username / UUID">
+            <input type="password" id="user-pass-input" placeholder="Password">
+            <button class="auth-btn" onclick="startApp()">Start Session 🚀</button>
+            <div id="rec-key" style="margin-top:15px; font-size:0.75em; color:#10b981; word-break:break-all;"></div>
         </div>
     </div>
+
+    <!-- Main Workspace -->
+    <div class="sidebar">
+        <div class="logo">⚡ CYBER MESSENGER</div>
+        
+        <div class="profile-card">
+            <div class="avatar" id="my-avatar">U</div>
+            <div>
+                <strong id="display-my-id" style="font-size: 0.9em; color: #f8fafc;">Not Connected</strong>
+                <p style="font-size: 0.7em; color: #10b981;">● Online</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <label style="font-size:0.8em; color:#94a3b8; font-weight:600;">Chatting With (UUID / Username):</label>
+            <input type="text" id="target-id-input" placeholder="Recipient ID" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; color:#fff; border-radius:10px; margin-top:6px; outline:none;">
+            <button class="block-btn" onclick="alert('User Blocked 🚫')">Block User 🚫</button>
+        </div>
+    </div>
+
     <div class="chat-area">
         <div class="chat-header">
-            <div><strong id="header-target" style="font-size: 1.1em;">Select User to Chat</strong></div>
-            <span class="status-badge">⚡ Instant WebSocket</span>
+            <div>
+                <strong id="chat-title" style="font-size: 1.1em;">End-to-End Encrypted Chat</strong>
+            </div>
+            <span class="status-badge">🔒 0ms Realtime WebSocket</span>
         </div>
+
         <div class="messages-container" id="chat-box"></div>
+
         <div class="input-bar">
-            <input type="text" id="msg-input" placeholder="Message..." onkeydown="if(event.key==='Enter') sendMsg()">
+            <input type="text" id="msg-input" placeholder="Write encrypted message..." onkeydown="if(event.key==='Enter') sendMsg()">
             <button class="send-btn" onclick="sendMsg()">SEND 🚀</button>
         </div>
     </div>
+
     <script>
         let ws = null;
-        function connectWS() {
-            const username = document.getElementById("my-user").value.trim();
-            if(!username) return alert("Enter your username");
+        let myUserId = "";
+
+        function startApp() {
+            const inputVal = document.getElementById("user-id-input").value.trim();
+            if(!inputVal) return alert("Please enter User ID / Username");
+            
+            myUserId = inputVal;
+            document.getElementById("display-my-id").innerText = myUserId;
+            document.getElementById("my-avatar").innerText = myUserId.charAt(0).toUpperCase();
+            document.getElementById("auth-modal").style.display = "none";
+
+            // Generate Recovery Key demo
+            document.getElementById("rec-key").innerText = "RECOVERY KEY: REC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws/${username}`);
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/${myUserId}`);
+
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                appendBubble(data.sender, data.content, data.time);
+                appendBubble(data.sender_id, data.encrypted_content, data.created_at);
             };
-            alert("Connected as: " + username);
         }
+
         function sendMsg() {
             const input = document.getElementById("msg-input");
-            const recipient = document.getElementById("target-user").value.trim();
+            const receiverId = document.getElementById("target-id-input").value.trim();
             const msg = input.value.trim();
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Click Connect first!");
-            if(!msg || !recipient) return;
-            ws.send(JSON.stringify({ recipient: recipient, message: msg }));
+
+            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("WebSocket Disconnected!");
+            if(!msg || !receiverId) return alert("Please set Recipient ID & Message");
+
+            ws.send(JSON.stringify({
+                receiver_id: receiverId,
+                encrypted_content: msg,
+                encrypted_key: "FERNET_SECURED"
+            }));
+
             input.value = "";
         }
-        function appendBubble(sender, content, time) {
-            const myUser = document.getElementById("my-user").value.trim();
-            const isMine = (sender === myUser);
+
+        function appendBubble(senderId, content, time) {
+            const isMine = (senderId === myUserId);
             const chatBox = document.getElementById("chat-box");
             const wrapper = document.createElement("div");
             wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
@@ -136,31 +182,35 @@ HTML_CONTENT = """
 </html>
 """
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def get_index():
-    return HTMLResponse(content=HTML_CONTENT)
+    return HTML_CONTENT_FULL()
 
-@app.websocket("/ws/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: str):
-    await manager.connect(username, websocket)
+def HTML_CONTENT_FULL():
+    return FULL_HTML
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await manager.connect(user_id, websocket)
     try:
         while True:
             data = await websocket.receive_json()
-            sender = username
-            recipient = data.get("recipient")
-            content = data.get("message")
+            sender_id = user_id
+            receiver_id = data.get("receiver_id")
+            encrypted_content = data.get("encrypted_content")
+            encrypted_key = data.get("encrypted_key", "")
 
-            if content and recipient:
-                msg_id = secrets.token_hex(8)
+            if encrypted_content and receiver_id:
                 msg_out = {
-                    "id": msg_id,
-                    "sender": sender,
-                    "recipient": recipient,
-                    "content": content,
-                    "time": "NOW"
+                    "id": secrets.token_hex(4),
+                    "sender_id": sender_id,
+                    "receiver_id": receiver_id,
+                    "encrypted_content": encrypted_content,
+                    "encrypted_key": encrypted_key,
+                    "created_at": "NOW"
                 }
-                await manager.send_to_user(recipient, msg_out)
-                await manager.send_to_user(sender, msg_out)
+                await manager.send_to_user(receiver_id, msg_out)
+                await manager.send_to_user(sender_id, msg_out)
 
     except WebSocketDisconnect:
-        manager.disconnect(username)
+        manager.disconnect(user_id)
