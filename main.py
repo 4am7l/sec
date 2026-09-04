@@ -83,7 +83,6 @@ def create_user(username, password_hash, recovery_hash, user_id, role="user"):
 def update_user_field(username, updates_dict):
     supabase.table("users").update(updates_dict).eq("username", username).execute()
 
-# --- محسن: استعلام مدمج وسريع بجلب الرسائل بدلاً من استعلامين ---
 def get_messages(user1, user2):
     try:
         res = supabase.table("messages").select("*").or_(
@@ -91,7 +90,6 @@ def get_messages(user1, user2):
         ).order("created_at", desc=False).execute()
         return res.data
     except Exception:
-        # احتياطي في حال حدوث رمز خاص في الأسماء
         res1 = supabase.table("messages").select("*").eq("sender", user1).eq("recipient", user2).execute().data
         res2 = supabase.table("messages").select("*").eq("sender", user2).eq("recipient", user1).execute().data
         all_msgs = res1 + res2
@@ -708,7 +706,6 @@ else:
 
                     chat_container = st.container(height=430)
 
-                    # تم إلغاء run_every="2s" والاعتماد على الاستماع الفوري WebSocket Realtime
                     @st.fragment
                     def render_live_chat():
                         msgs_to_burn = []
@@ -834,8 +831,8 @@ else:
                             for bm in msgs_to_burn:
                                 delete_message(bm["id"])
 
-                        # --- كود الاستماع اللحظي الفوري عبر WebSocket ---
-                        components.html(f"""
+                        # --- WebSocket Realtime Listener مع تصحيح الأقواس المزخرفة ---
+                        js_code = f"""
                         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
                         <script>
                             const SUPABASE_URL = "{SUPABASE_URL}";
@@ -847,12 +844,13 @@ else:
                                 .on('postgres_changes', {{ event: 'INSERT', schema: 'public', table: 'messages' }}, payload => {{
                                     if ((payload.new.sender === '{current_user}' && payload.new.recipient === '{target_chat}') ||
                                         (payload.new.sender === '{target_chat}' && payload.new.recipient === '{current_user}')) {{
-                                        window.parent.postMessage({{type: 'streamlit:rerun'}, '*'});
+                                        window.parent.postMessage({{ type: 'streamlit:rerun' }}, '*');
                                     }}
                                 }})
                                 .subscribe();
                         </script>
-                        """, height=0)
+                        """
+                        components.html(js_code, height=0)
 
                     render_live_chat()
 
