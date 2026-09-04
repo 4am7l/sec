@@ -48,7 +48,7 @@ def generate_recovery_key():
     raw = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
     return f"{raw[:4]}-{raw[4:]}"
 
-# --- SUPABASE DATABASE OPS ---
+# --- SUPABASE DATABASE OPS (تحسين الأداء بالتخزين المؤقت) ---
 def get_all_users():
     res = supabase.table("users").select("*").execute()
     users_dict = {}
@@ -696,7 +696,7 @@ else:
                     target_st_txt = target_udata.get("status_text", "Available")
                     target_disp = my_nicknames.get(target_chat, target_chat)
                     
-                    chat_header_html = f'<div class="chat-header-bar"><div style="display: flex; align-items: center; gap: 14px;">{get_avatar_html(target_av, size=46, status_icon=target_st_icon)}<div><strong style="font-size: 1.2em; color:#f8fafc;">{target_disp}</strong><span style="color: #60a5fa; font-size: 0.88em; margin-left: 6px;">({target_chat} {target_id})</span><small style="display:block; color:#94a3b8; font-size: 0.8em;">{target_st_txt}</small></div></div><span style="background:#059669; color:#ffffff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">⚡ Instant Realtime</span></div>'
+                    chat_header_html = f'<div class="chat-header-bar"><div style="display: flex; align-items: center; gap: 14px;">{get_avatar_html(target_av, size=46, status_icon=target_st_icon)}<div><strong style="font-size: 1.2em; color:#f8fafc;">{target_disp}</strong><span style="color: #60a5fa; font-size: 0.88em; margin-left: 6px;">({target_chat} {target_id})</span><small style="display:block; color:#94a3b8; font-size: 0.8em;">{target_st_txt}</small></div></div><span style="background:#059669; color:#ffffff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted Fast</span></div>'
                     st.markdown(chat_header_html, unsafe_allow_html=True)
 
                     pair_key = f"{min(current_user, target_chat)}_{max(current_user, target_chat)}"
@@ -704,183 +704,197 @@ else:
                     if pinned_msg:
                         st.markdown(f'<div style="background:#1e1b4b; border:1px solid #4338ca; padding:8px 14px; border-radius:8px; font-size:0.85em; margin-bottom:12px;">📌 <strong>Pinned:</strong> {pinned_msg}</div>', unsafe_allow_html=True)
 
-                    # --- محرك الدردشة اللحظي والمباشر بنسبة 100% ---
-                    b64_key = base64.b64encode(SECRET_KEY).decode('utf-8')
-                    
-                    instant_chat_engine = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-                        <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-                        <style>
-                            body {{
-                                background: transparent;
-                                color: #f1f5f9;
-                                font-family: 'Plus Jakarta Sans', sans-serif;
-                                margin: 0;
-                                padding: 0;
-                            }}
-                            #chat-box {{
-                                height: 410px;
-                                overflow-y: auto;
-                                display: flex;
-                                flex-direction: column;
-                                gap: 10px;
-                                padding: 10px;
-                                background: #0b0f19;
-                                border-radius: 12px;
-                                border: 1px solid rgba(255,255,255,0.08);
-                            }}
-                            .msg {{
-                                display: flex;
-                                width: 100%;
-                            }}
-                            .sent {{ justify-content: flex-end; }}
-                            .received {{ justify-content: flex-start; }}
-                            .bubble {{
-                                max-width: 70%;
-                                padding: 10px 14px;
-                                border-radius: 16px;
-                                font-size: 0.9em;
-                                line-height: 1.4;
-                                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                                word-break: break-word;
-                            }}
-                            .sent .bubble {{
-                                background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-                                color: #fff;
-                                border-bottom-right-radius: 4px;
-                            }}
-                            .received .bubble {{
-                                background: #1e293b;
-                                color: #f1f5f9;
-                                border-bottom-left-radius: 4px;
-                                border: 1px solid rgba(255, 255, 255, 0.05);
-                            }}
-                            .time {{
-                                font-size: 0.65em;
-                                opacity: 0.7;
-                                display: block;
-                                text-align: right;
-                                margin-top: 4px;
-                            }}
-                            #input-area {{
-                                display: flex;
-                                gap: 8px;
-                                margin-top: 10px;
-                            }}
-                            #msg-input {{
-                                flex: 1;
-                                background: #111827;
-                                border: 1px solid rgba(255,255,255,0.15);
-                                color: #fff;
-                                padding: 12px 14px;
-                                border-radius: 10px;
-                                font-size: 0.95em;
-                                outline: none;
-                            }}
-                            #msg-input:focus {{
-                                border-color: #3b82f6;
-                            }}
-                            #send-btn {{
-                                background: linear-gradient(135deg, #2563eb, #1d4ed8);
-                                color: #fff;
-                                border: none;
-                                padding: 0 20px;
-                                border-radius: 10px;
-                                font-weight: bold;
-                                cursor: pointer;
-                                transition: 0.2s;
-                            }}
-                            #send-btn:hover {{
-                                transform: scale(1.02);
-                            }}
-                        </style>
-                    </head>
-                    <body>
-                        <div id="chat-box"></div>
-                        <div id="input-area">
-                            <input type="text" id="msg-input" placeholder="Message..." onkeydown="if(event.key==='Enter') sendMsg()" />
-                            <button id="send-btn" onclick="sendMsg()">SEND 🚀</button>
-                        </div>
+                    chat_container = st.container(height=430)
 
-                        <script>
-                            const SUPABASE_URL = "{SUPABASE_URL}";
-                            const SUPABASE_KEY = "{SUPABASE_KEY}";
-                            const CURRENT_USER = "{current_user}";
-                            const TARGET_USER = "{target_chat}";
+                    @st.fragment
+                    def render_live_chat():
+                        msgs_to_burn = []
+                        filtered_msgs = get_messages(current_user, target_chat)
+                        
+                        with chat_container:
+                            st.markdown('<div class="chat-message-container">', unsafe_allow_html=True)
+                            for idx, m in enumerate(filtered_msgs):
+                                f_user = m.get("sender")
+                                msg_id = m.get("id")
+                                try:
+                                    dec_raw = cipher.decrypt(m['content'].encode()).decode()
+                                    txt_display = dec_raw
+                                    file_bytes, file_name, file_mime = None, None, None
+
+                                    if "[FILE:" in dec_raw:
+                                        parts = dec_raw.split("[FILE:")
+                                        txt_display = parts[0].strip()
+                                        meta_and_b64 = parts[1]
+                                        meta_str = meta_and_b64.split("]")[0]
+                                        b64_str = meta_and_b64.split("]")[1]
+                                        
+                                        file_name, file_mime = meta_str.split(":", 1)
+                                        file_bytes = base64.b64decode(b64_str)
+
+                                except Exception:
+                                    txt_display = "⚠️ <i>[Decryption failed]</i>"
+                                    file_bytes = None
+
+                                is_mine = (f_user == current_user)
+                                alignment = "sent" if is_mine else "received"
+                                burn_html = ' 🔥' if m.get("burn") else ""
+                                time_str = m.get("created_at", "")[11:16]
+                                reply_text = m.get("reply")
+
+                                col_b1, col_b2 = st.columns([0.88, 0.12]) if is_mine else st.columns([0.12, 0.88])
+                                
+                                bubble_content = ""
+                                if reply_text:
+                                    bubble_content += f'<div class="reply-box">↩️ {reply_text}</div>'
+                                if txt_display:
+                                    bubble_content += f'<div>{txt_display}{burn_html}</div>'
+
+                                reactions = m.get("reactions", {}) or {}
+                                if reactions:
+                                    r_pills = "".join([f'<span class="reaction-pill">{emoji} {count}</span>' for emoji, count in reactions.items()])
+                                    bubble_content += f'<div class="reactions-row">{r_pills}</div>'
+
+                                bubble_content += f'<span class="msg-time">{time_str}</span>'
+
+                                if is_mine:
+                                    with col_b1:
+                                        st.markdown(f'<div class="msg-wrapper sent"><div class="insta-bubble">{bubble_content}</div></div>', unsafe_allow_html=True)
+                                    with col_b2:
+                                        with st.popover("⚙️"):
+                                            st.caption("Actions")
+                                            for em in ["❤️", "👍", "🔥", "😂"]:
+                                                if st.button(em, key=f"react_{msg_id}_{em}"):
+                                                    r_dict = m.get("reactions", {}) or {}
+                                                    r_dict[em] = r_dict.get(em, 0) + 1
+                                                    update_message_reactions(msg_id, r_dict)
+                                                    st.rerun()
+                                            if st.button("↩️", key=f"rpl_btn_{msg_id}"):
+                                                st.session_state.reply_to_msg = txt_display[:30] if txt_display else "Attachment"
+                                                st.rerun()
+                                            if st.button("📌", key=f"pin_btn_{msg_id}"):
+                                                set_pinned(pair_key, txt_display[:50])
+                                                st.rerun()
+                                else:
+                                    with col_b1:
+                                        with st.popover("⚙️"):
+                                            st.caption("Actions")
+                                            for em in ["❤️", "👍", "🔥", "😂"]:
+                                                if st.button(em, key=f"react_{msg_id}_{em}"):
+                                                    r_dict = m.get("reactions", {}) or {}
+                                                    r_dict[em] = r_dict.get(em, 0) + 1
+                                                    update_message_reactions(msg_id, r_dict)
+                                                    st.rerun()
+                                            if st.button("↩️", key=f"rpl_btn_{msg_id}"):
+                                                st.session_state.reply_to_msg = txt_display[:30] if txt_display else "Attachment"
+                                                st.rerun()
+                                            if st.button("📌", key=f"pin_btn_{msg_id}"):
+                                                set_pinned(pair_key, txt_display[:50])
+                                                st.rerun()
+                                    with col_b2:
+                                        st.markdown(f'<div class="msg-wrapper received"><div class="insta-bubble">{bubble_content}</div></div>', unsafe_allow_html=True)
+
+                                if file_bytes:
+                                    st.markdown(f'<div class="msg-wrapper {alignment}"><div class="insta-bubble">', unsafe_allow_html=True)
+                                    if file_mime and "image" in file_mime:
+                                        st.image(file_bytes, caption=file_name, use_container_width=True)
+                                    else:
+                                        st.markdown(f"📄 **{file_name}**")
+
+                                    st.download_button(
+                                        label="⬇️ Download Attachment",
+                                        data=file_bytes,
+                                        file_name=file_name,
+                                        mime=file_mime,
+                                        key=f"dl_{msg_id}",
+                                        use_container_width=True
+                                    )
+                                    st.markdown('</div></div>', unsafe_allow_html=True)
+
+                                if not is_mine and m.get("burn"):
+                                    msgs_to_burn.append(m)
+
+                            st.markdown('</div><div id="end-of-chat"></div>', unsafe_allow_html=True)
                             
-                            const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                            const chatBox = document.getElementById("chat-box");
+                            components.html("""
+                            <script>
+                                function scrollToBottom() {
+                                    var element = window.parent.document.getElementById("end-of-chat");
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: "smooth", block: "end" });
+                                    }
+                                }
+                                setTimeout(scrollToBottom, 200);
+                            </script>
+                            """, height=0)
 
-                            function appendMessage(sender, content, createdAt) {{
-                                const isMine = (sender === CURRENT_USER);
-                                const msgDiv = document.createElement("div");
-                                msgDiv.className = "msg " + (isMine ? "sent" : "received");
-                                
-                                const timeStr = createdAt ? createdAt.substring(11, 16) : new Date().toLocaleTimeString().substring(0,5);
-                                msgDiv.innerHTML = `<div class="bubble">${{content}}<span class="time">${{timeStr}}</span></div>`;
-                                
-                                chatBox.appendChild(msgDiv);
-                                chatBox.scrollTop = chatBox.scrollHeight;
+                        if msgs_to_burn:
+                            for bm in msgs_to_burn:
+                                delete_message(bm["id"])
+
+                        # --- Realtime WebSocket ringan بدون استهلاك للشبكة ---
+                        js_realtime = f"""
+                        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+                        <script>
+                            if (!window.supabaseClient) {{
+                                window.supabaseClient = supabase.createClient("{SUPABASE_URL}", "{SUPABASE_KEY}");
                             }}
-
-                            async function loadMessages() {{
-                                chatBox.innerHTML = "";
-                                const {{ data, error }} = await supabase
-                                    .from('messages')
-                                    .select('*')
-                                    .or(`and(sender.eq.${{CURRENT_USER}},recipient.eq.${{TARGET_USER}}),and(sender.eq.${{TARGET_USER}},recipient.eq.${{CURRENT_USER}})`)
-                                    .order('created_at', {{ ascending: true }});
-                                
-                                if (data) {{
-                                    data.forEach(m => {{
-                                        appendMessage(m.sender, m.content, m.created_at);
-                                    }});
-                                }}
+                            if (window.chatChannel) {{
+                                window.supabaseClient.removeChannel(window.chatChannel);
                             }}
-
-                            async function sendMsg() {{
-                                const input = document.getElementById("msg-input");
-                                const txt = input.value.trim();
-                                if (!txt) return;
-
-                                input.value = "";
-                                const msgId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-                                
-                                // إرسال مباشر وعرض فوري بنفس الملي ثانية
-                                appendMessage(CURRENT_USER, txt, new Date().toISOString());
-
-                                await supabase.from('messages').insert([{{
-                                    id: msgId,
-                                    sender: CURRENT_USER,
-                                    recipient: TARGET_USER,
-                                    content: txt,
-                                    burn: false,
-                                    reply: null,
-                                    reactions: {{}}
-                                }}]);
-                            }}
-
-                            // استقبال فوري بنفس اللحظة عبر WebSockets ⚡
-                            supabase
-                                .channel('instant_chat_room')
+                            window.chatChannel = window.supabaseClient
+                                .channel('room_{current_user}_{target_chat}')
                                 .on('postgres_changes', {{ event: 'INSERT', schema: 'public', table: 'messages' }}, payload => {{
-                                    const newMsg = payload.new;
-                                    if (newMsg.sender === TARGET_USER && newMsg.recipient === CURRENT_USER) {{
-                                        appendMessage(newMsg.sender, newMsg.content, newMsg.created_at);
+                                    if ((payload.new.sender === '{current_user}' && payload.new.recipient === '{target_chat}') ||
+                                        (payload.new.sender === '{target_chat}' && payload.new.recipient === '{current_user}')) {{
+                                        window.parent.postMessage({{ type: 'streamlit:rerun' }}, '*');
                                     }}
                                 }})
                                 .subscribe();
-
-                            loadMessages();
                         </script>
-                    </body>
-                    </html>
-                    """
-                    
-                    components.html(instant_chat_engine, height=485)
+                        """
+                        components.html(js_realtime, height=0)
+
+                    render_live_chat()
+
+                    st.markdown("<div style='clear:both; margin-top:10px;'></div>", unsafe_allow_html=True)
+
+                    if st.session_state.reply_to_msg:
+                        st.info(f"↩️ Replying to: *{st.session_state.reply_to_msg}*")
+
+                    # --- نموذج الإرسال الثابت والمضمون ---
+                    with st.form(key="send_form", clear_on_submit=True, border=True):
+                        in_msg = st.text_area("Message", placeholder="Message...", key="in_msg_key", label_visibility="collapsed", height=68)
+                        
+                        c_file, c_chk, c_btn = st.columns([2, 1, 1])
+                        with c_file:
+                            up_file = st.file_uploader("Attach", type=["png", "jpg", "jpeg", "pdf", "txt"], label_visibility="collapsed")
+                        with c_chk:
+                            st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+                            chk_burn = st.checkbox("🔥 Burn")
+                        with c_btn:
+                            st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
+                            btn_sub = st.form_submit_button("SEND 🚀", use_container_width=True)
+
+                        if btn_sub:
+                            target_blk = target_udata.get("blocked", []) or []
+                            if current_user in target_blk:
+                                st.error("User has blocked you.")
+                            elif not in_msg.strip() and not up_file:
+                                st.warning("Cannot send an empty message.")
+                            else:
+                                final_payload = in_msg.strip()
+                                
+                                if up_file:
+                                    f_bytes = up_file.read()
+                                    b64_data = base64.b64encode(f_bytes).decode('utf-8')
+                                    file_meta = f"[FILE:{up_file.name}:{up_file.type}]{b64_data}"
+                                    final_payload = f"{final_payload}\n{file_meta}" if final_payload else file_meta
+
+                                enc_content = cipher.encrypt(final_payload.encode()).decode()
+                                new_id = secrets.token_hex(8)
+                                send_message(new_id, current_user, target_chat, enc_content, burn=chk_burn, reply=st.session_state.reply_to_msg)
+                                st.session_state.reply_to_msg = None
+                                st.rerun()
 
     elif st.session_state.current_page == "🚫 Blocklist":
         st.markdown("### 🚫 Blocklist Management")
