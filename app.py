@@ -251,17 +251,20 @@ FULL_UI_HTML = """
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
 
-        .card-box { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
-        .form-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 20px; border-radius: 16px; margin-top: 15px; }
+        /* Friend Hub Buttons Grid */
+        .friend-nav-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+        .friend-nav-card { background: linear-gradient(135deg, #1e293b 0%, #111827 100%); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.25s ease; }
+        .friend-nav-card:hover, .friend-nav-card.active { border-color: #3b82f6; transform: translateY(-3px); box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25); background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); }
+        .friend-nav-card h4 { font-size: 1.1em; color: #fff; margin-bottom: 4px; }
+        .friend-nav-card p { font-size: 0.8em; color: #94a3b8; }
+        .friend-nav-card.active p { color: #dbeafe; }
+
+        .form-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 20px; border-radius: 16px; }
         .form-card input, .form-card textarea { width: 100%; padding: 10px; background: #090d16; border: 1px solid #334155; border-radius: 8px; color: #fff; margin-bottom: 10px; outline: none; }
         .user-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
         
-        .section-tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; }
-        .sec-tab-btn { background: rgba(30, 41, 59, 0.5); color: #94a3b8; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .sec-tab-btn.active { background: #2563eb; color: #fff; }
-
-        .sec-sub-page { display: none; }
-        .sec-sub-page.active { display: block; }
+        .sub-view { display: none; }
+        .sub-view.active { display: block; }
 
         .chat-header-bar { background: #111827; padding: 14px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
         .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; background: #0b0f19; }
@@ -312,7 +315,7 @@ FULL_UI_HTML = """
         <hr style="border:0.5px solid rgba(255,255,255,0.08); margin: 10px 0;">
         <button class="nav-btn active" onclick="showPage('dashboard', this)">🏠 Dashboard</button>
         <button class="nav-btn" onclick="showPage('messages', this)">💬 Messages</button>
-        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends Hub</button>
+        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends Manager</button>
         <button class="nav-btn" onclick="showPage('profile', this)">👤 Profile</button>
         <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
     </div>
@@ -322,9 +325,9 @@ FULL_UI_HTML = """
         <div class="page-content active" id="page-dashboard">
             <h3>📊 Dashboard Overview</h3>
             <div style="display:flex; gap:15px; margin-top:15px;">
-                <div class="card-box"><h2 style="color:#60a5fa; font-size:2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
-                <div class="card-box"><h2 style="color:#f59e0b; font-size:2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
-                <div class="card-box"><h2 style="color:#10b981; font-size:2em;">⚡</h2><small style="color:#94a3b8;">WebSocket Active</small></div>
+                <div class="card-box" style="background:#111827; padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); flex:1; text-align:center;"><h2 style="color:#60a5fa; font-size:2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
+                <div class="card-box" style="background:#111827; padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); flex:1; text-align:center;"><h2 style="color:#f59e0b; font-size:2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
+                <div class="card-box" style="background:#111827; padding:20px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); flex:1; text-align:center;"><h2 style="color:#10b981; font-size:2em;">⚡</h2><small style="color:#94a3b8;">WebSocket Active</small></div>
             </div>
         </div>
 
@@ -354,48 +357,53 @@ FULL_UI_HTML = """
             </div>
         </div>
 
-        <!-- COMPLETE FRIENDS HUB SECTION -->
+        <!-- FRIENDS SECTION WITH 3 DIRECT BUTTONS -->
         <div class="page-content" id="page-friends">
-            <h3>👥 Friends Hub</h3>
-            
-            <div class="section-tabs" style="margin-top:15px;">
-                <button class="sec-tab-btn active" onclick="switchFriendsTab('list', this)">👥 My Friends</button>
-                <button class="sec-tab-btn" onclick="switchFriendsTab('reqs', this)">📩 Requests</button>
-                <button class="sec-tab-btn" onclick="switchFriendsTab('search', this)">🔍 Search Users</button>
-                <button class="sec-tab-btn" onclick="switchFriendsTab('blocked', this)">🚫 Blocked Users</button>
-            </div>
+            <h3>👥 Friends Manager</h3>
+            <p style="color:#94a3b8; margin-bottom: 20px;">اختر القائمة التي تريد إدارتها:</p>
 
-            <!-- TAB 1: FRIENDS LIST -->
-            <div class="sec-sub-page active" id="sub-friends-list">
-                <div class="form-card">
-                    <h4>My Active Friends</h4>
-                    <div id="my-friends-container" style="margin-top:10px;"></div>
+            <div class="friend-nav-grid">
+                <div class="friend-nav-card active" onclick="openFriendSubView('my-friends', this)">
+                    <h4>👥 الأصدقاء الحاليين</h4>
+                    <p id="sub-cnt-friends">0 أصدقاء</p>
+                </div>
+                <div class="friend-nav-card" onclick="openFriendSubView('search-add', this)">
+                    <h4>🔍 البحث وإضافة أصدقاء</h4>
+                    <p>ابحث بالكود أو الاسم</p>
+                </div>
+                <div class="friend-nav-card" onclick="openFriendSubView('block-list', this)">
+                    <h4>🚫 قائمة الحظر (Block)</h4>
+                    <p id="sub-cnt-blocked">0 محظورين</p>
                 </div>
             </div>
 
-            <!-- TAB 2: PENDING REQUESTS -->
-            <div class="sec-sub-page" id="sub-friends-reqs">
+            <!-- VIEW 1: MY FRIENDS -->
+            <div class="sub-view active" id="view-my-friends">
                 <div class="form-card">
-                    <h4>Pending Friend Requests</h4>
-                    <div id="pending-requests-container" style="margin-top:10px;"></div>
+                    <h4 style="margin-bottom:12px;">قائمة الأصدقاء الحاليين</h4>
+                    <div id="my-friends-container"></div>
+                </div>
+                <div class="form-card" style="margin-top:15px;">
+                    <h4 style="margin-bottom:12px;">📩 طلبات الصداقة المعلقة</h4>
+                    <div id="pending-requests-container"></div>
                 </div>
             </div>
 
-            <!-- TAB 3: SEARCH & ADD -->
-            <div class="sec-sub-page" id="sub-friends-search">
+            <!-- VIEW 2: SEARCH & ADD -->
+            <div class="sub-view" id="view-search-add">
                 <div class="form-card">
-                    <h4>Search Users by Name or ID</h4>
-                    <input type="text" id="friend-search-q" placeholder="Type Username or #ID..." style="margin-top:8px;">
-                    <button class="auth-btn" style="width:100%;" onclick="searchFriends()">Search 🔍</button>
+                    <h4 style="margin-bottom:12px;">البحث عن أصدقاء جدد</h4>
+                    <input type="text" id="friend-search-q" placeholder="اكتب اسم المستخدم أو الكود (#A123)...">
+                    <button class="auth-btn" style="width:100%; margin-top:5px;" onclick="searchFriends()">بحث 🔍</button>
                     <div id="search-results-container" style="margin-top:15px;"></div>
                 </div>
             </div>
 
-            <!-- TAB 4: BLOCKED USERS -->
-            <div class="sec-sub-page" id="sub-friends-blocked">
+            <!-- VIEW 3: BLOCK LIST -->
+            <div class="sub-view" id="view-block-list">
                 <div class="form-card">
-                    <h4>Blocked List</h4>
-                    <div id="blocked-users-container" style="margin-top:10px;"></div>
+                    <h4 style="margin-bottom:12px;">إدارة قائمة الحظر</h4>
+                    <div id="blocked-users-container"></div>
                 </div>
             </div>
         </div>
@@ -464,7 +472,7 @@ FULL_UI_HTML = """
             if(res.ok) {
                 userData = data.user;
                 updateUIProfile();
-                renderAllFriendsHubData();
+                renderFriendsViews();
             }
         }
 
@@ -478,8 +486,12 @@ FULL_UI_HTML = """
 
             const flist = userData.friends || [];
             const rlist = userData.friend_requests || [];
+            const blist = userData.blocked || [];
+            
             document.getElementById('dash-friends-count').innerText = flist.length;
             document.getElementById('dash-reqs-count').innerText = rlist.length;
+            document.getElementById('sub-cnt-friends').innerText = flist.length + " أصدقاء";
+            document.getElementById('sub-cnt-blocked').innerText = blist.length + " محظورين";
 
             if(userData.avatar) {
                 document.getElementById('user-avatar-disp').innerHTML = `<img src="${userData.avatar}">`;
@@ -506,12 +518,12 @@ FULL_UI_HTML = """
             }
         }
 
-        function switchFriendsTab(tabName, btnEl) {
-            document.querySelectorAll('.sec-tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.sec-sub-page').forEach(p => p.classList.remove('active'));
+        function openFriendSubView(viewId, cardEl) {
+            document.querySelectorAll('.friend-nav-card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.sub-view').forEach(v => v.classList.remove('active'));
 
-            document.getElementById('sub-friends-' + tabName).classList.add('active');
-            btnEl.classList.add('active');
+            document.getElementById('view-' + viewId).classList.add('active');
+            cardEl.classList.add('active');
         }
 
         async function searchFriends() {
@@ -530,7 +542,7 @@ FULL_UI_HTML = """
                             <strong>${u.username}</strong> (${u.user_id})
                             <p style="font-size:0.8em; color:#94a3b8;">${u.bio || ''}</p>
                         </div>
-                        ${isFriend ? '<span style="color:#10b981; font-weight:bold;">Friend ✅</span>' : `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendRequest('${u.username}')">📩 Send Request</button>`}
+                        ${isFriend ? '<span style="color:#10b981; font-weight:bold;">صديق ✅</span>' : `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendRequest('${u.username}')">📩 إرسال طلب</button>`}
                     </div>`;
                 }
             });
@@ -542,57 +554,57 @@ FULL_UI_HTML = """
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: userData.username, target_name: tname})
             });
-            if(res.ok) alert("Request Sent!");
+            if(res.ok) alert("تم إرسال طلب الصداقة بنجاح!");
         }
 
-        function renderAllFriendsHubData() {
-            // 1. Render Friends
+        function renderFriendsViews() {
+            // 1. Friends List
             const fBox = document.getElementById('my-friends-container');
             fBox.innerHTML = "";
             const flist = userData.friends || [];
-            if(flist.length === 0) fBox.innerHTML = "<p style='color:#94a3b8;'>No friends added yet.</p>";
+            if(flist.length === 0) fBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد أصدقاء حالياً.</p>";
             else {
                 flist.forEach(f => {
                     fBox.innerHTML += `
                     <div class="user-card">
                         <div><strong>${f}</strong></div>
                         <div>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}', 'block')">🚫 Block</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 محادثة</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="blockUser('${f}', 'block')">🚫 حظر</button>
                         </div>
                     </div>`;
                 });
             }
 
-            // 2. Render Pending Requests
+            // 2. Pending Requests
             const rBox = document.getElementById('pending-requests-container');
             rBox.innerHTML = "";
             const reqs = userData.friend_requests || [];
-            if(reqs.length === 0) rBox.innerHTML = "<p style='color:#94a3b8;'>No pending requests.</p>";
+            if(reqs.length === 0) rBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد طلبات صداقة معلقة.</p>";
             else {
                 reqs.forEach(r => {
                     rBox.innerHTML += `
                     <div class="user-card">
-                        <div><strong>${r}</strong> sent you a request</div>
+                        <div>قام <strong>${r}</strong> بإرسال طلب صداقة إليك</div>
                         <div>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="respondReq('${r}', 'accept')">Accept ✅</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="respondReq('${r}', 'decline')">Decline ❌</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="respondReq('${r}', 'accept')">قبول ✅</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="respondReq('${r}', 'decline')">رفض ❌</button>
                         </div>
                     </div>`;
                 });
             }
 
-            // 3. Render Blocked Users
+            // 3. Blocked List
             const bBox = document.getElementById('blocked-users-container');
             bBox.innerHTML = "";
             const blist = userData.blocked || [];
-            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>No blocked users.</p>";
+            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد مستخدمين محظورين.</p>";
             else {
                 blist.forEach(b => {
                     bBox.innerHTML += `
                     <div class="user-card">
                         <div><strong>${b}</strong></div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="blockUser('${b}', 'unblock')">Unblock ✅</button>
+                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="blockUser('${b}', 'unblock')">إلغاء الحظر ✅</button>
                     </div>`;
                 });
             }
@@ -634,8 +646,8 @@ FULL_UI_HTML = """
             const input = document.getElementById("msg-input");
             const target = document.getElementById("target-user-input").value.trim();
             const msg = input.value.trim();
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Not Connected");
-            if(!msg || !target) return alert("Specify recipient & message");
+            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("الجلسة غير متصلة");
+            if(!msg || !target) return alert("حدد المستلم واكتب الرسالة");
             ws.send(JSON.stringify({ recipient: target, message: msg }));
             input.value = "";
         }
