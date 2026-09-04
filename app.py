@@ -9,12 +9,12 @@ from supabase import create_client, Client
 
 app = FastAPI()
 
-# --- SETUP SUPABASE ---
+# --- SUPABASE CONFIG ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://shgxaxtjurbvbqdvmkzt.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_FEE0CeWycaYbelk2VZPTBw_8j7lkftq")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- ENCRYPTION SETUP ---
+# --- FERNET ENCRYPTION ---
 KEY_FILE = os.path.join(os.path.dirname(__file__), "secret.key")
 def load_or_generate_key():
     if not os.path.exists(KEY_FILE):
@@ -58,21 +58,19 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- BACKEND AUTH ENDPOINTS (SUPABASE INTEGRATION) ---
+# --- DATABASE AUTH APIs ---
 @app.post("/api/register")
 async def register_user(data: dict):
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     
     if not username or not password:
-        raise HTTPException(status_code=400, detail="Username and Password required")
+        raise HTTPException(status_code=400, detail="اسم المستخدم وكلمة السر مطلوبان")
     
-    # Check if user exists
     res = supabase.table("users").select("*").eq("username", username).execute()
     if res.data:
-        raise HTTPException(status_code=400, detail="Username already exists in database")
+        raise HTTPException(status_code=400, detail="اسم المستخدم مستعمل سابقاً في قاعدة البيانات")
     
-    # Check total users to assign admin or user
     all_u = supabase.table("users").select("username").execute()
     assigned_role = "admin" if len(all_u.data) == 0 else "user"
     
@@ -103,13 +101,16 @@ async def login_user(data: dict):
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="يرجى إدخال اسم المستخدم وكلمة السر")
+
     res = supabase.table("users").select("*").eq("username", username).execute()
     if not res.data:
-        raise HTTPException(status_code=401, detail="Account does not exist")
+        raise HTTPException(status_code=401, detail="الحساب غير موجود في قاعدة البيانات")
     
     user_row = res.data[0]
     if user_row["password"] != hash_data(password):
-        raise HTTPException(status_code=401, detail="Incorrect password")
+        raise HTTPException(status_code=401, detail="كلمة السر غير صحيحة")
     
     return {"status": "success", "user": user_row}
 
@@ -119,18 +120,21 @@ async def recover_password(data: dict):
     rec_key = data.get("recovery_key", "").strip()
     new_pass = data.get("new_password", "").strip()
     
+    if not username or not rec_key or not new_pass:
+        raise HTTPException(status_code=400, detail="جميع الحقول مطلوبة")
+
     res = supabase.table("users").select("*").eq("username", username).execute()
     if not res.data:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="اسم المستخدم غير موجود")
     
     user_row = res.data[0]
     if user_row.get("recovery_key") != hash_data(rec_key):
-        raise HTTPException(status_code=401, detail="Invalid Recovery Key")
+        raise HTTPException(status_code=401, detail="مفتاح الاستعادة (Recovery Key) غير صحيح")
     
     supabase.table("users").update({"password": hash_data(new_pass)}).eq("username", username).execute()
     return {"status": "success"}
 
-# --- FULL ORIGINAL UI LAYOUT ---
+# --- FULL REALTIME INTERFACE ---
 FULL_UI_HTML = """
 <!DOCTYPE html>
 <html lang="ar">
@@ -144,7 +148,7 @@ FULL_UI_HTML = """
         body { background: #090d16; color: #f1f5f9; display: flex; height: 100vh; overflow: hidden; }
 
         /* Auth Gateway Glassmorphism */
-        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.95); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.96); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
         .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 35px; border-radius: 20px; width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); }
         .auth-card h1 { color: #3b82f6; font-size: 2.2em; font-weight: 800; text-align: center; margin-bottom: 2px; }
         .auth-card p.subtitle { color: #94a3b8; font-size: 0.9em; text-align: center; margin-bottom: 20px; }
@@ -169,7 +173,7 @@ FULL_UI_HTML = """
         .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 16px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.25s ease; margin-bottom: 6px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; border-color: rgba(255, 255, 255, 0.2); box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); }
 
-        /* Main Display Areas */
+        /* Main Workspace */
         .main-container { flex: 1; display: flex; flex-direction: column; background: #090d16; }
         .page-content { flex: 1; display: none; padding: 24px; overflow-y: auto; }
         .page-content.active { display: flex; flex-direction: column; }
@@ -191,12 +195,11 @@ FULL_UI_HTML = """
         .input-bar { background: #111827; padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); display: flex; gap: 12px; margin-top: 10px; }
         .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; color: #fff; outline: none; resize: none; height: 50px; }
         .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 24px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        .user-card { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 12px 16px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-    <!-- AUTHENTICATION GATEWAY MODAL -->
+    <!-- AUTH GATEWAY MODAL -->
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
             <h1>⚡ CYBER MESSENGER</h1>
@@ -208,21 +211,21 @@ FULL_UI_HTML = """
                 <button class="tab-btn" onclick="switchAuthTab('rec')">🛠️ RECOVERY</button>
             </div>
 
-            <!-- LOGIN TAB -->
+            <!-- LOGIN -->
             <div class="auth-form active" id="form-login">
                 <input type="text" id="l_u" placeholder="Username">
                 <input type="password" id="l_p" placeholder="Password">
                 <button class="auth-btn" onclick="apiLogin()">LOGIN 🚀</button>
             </div>
 
-            <!-- REGISTER TAB -->
+            <!-- REGISTER -->
             <div class="auth-form" id="form-reg">
                 <input type="text" id="r_u" placeholder="Username">
                 <input type="password" id="r_p" placeholder="Password (8+ chars)">
                 <button class="auth-btn" onclick="apiRegister()">CREATE ACCOUNT ✨</button>
             </div>
 
-            <!-- RECOVERY TAB -->
+            <!-- RECOVERY -->
             <div class="auth-form" id="form-rec">
                 <input type="text" id="rec_u" placeholder="Username">
                 <input type="text" id="rec_k" placeholder="Recovery Key (XXXX-XXXX)">
@@ -230,7 +233,7 @@ FULL_UI_HTML = """
                 <button class="auth-btn" onclick="apiRecover()">RESET PASSWORD 🔐</button>
             </div>
 
-            <div id="auth-msg" style="margin-top:15px; font-size:0.85em; color:#ef4444; word-break:break-all;"></div>
+            <div id="auth-msg" style="margin-top:15px; font-size:0.85em; font-weight:bold; word-break:break-all;"></div>
         </div>
     </div>
 
@@ -269,19 +272,19 @@ FULL_UI_HTML = """
             <div style="display:flex; gap:15px; margin-bottom:20px;">
                 <div class="card-box"><h2 style="color:#60a5fa; font-size:2.2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
                 <div class="card-box"><h2 style="color:#f59e0b; font-size:2.2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
-                <div class="card-box"><h2 style="color:#10b981; font-size:2.2em;">⚡</h2><small style="color:#94a3b8;">Supabase Connected</small></div>
+                <div class="card-box"><h2 style="color:#10b981; font-size:2.2em;">⚡</h2><small style="color:#94a3b8;">Database Direct Active</small></div>
             </div>
-            <button class="auth-btn" onclick="showPage('messages', document.querySelectorAll('.nav-btn')[1])">💬 Open Chat Room</button>
+            <button class="auth-btn" style="width: auto; padding: 12px 24px;" onclick="showPage('messages', document.querySelectorAll('.nav-btn')[1])">💬 Open Chat Room</button>
         </div>
 
         <!-- MESSAGES -->
         <div class="page-content" id="page-messages">
             <div class="chat-header-bar">
                 <div style="display:flex; align-items:center; gap:14px;">
-                    <div style="font-size:1.5em;" id="chat-target-avatar">👤</div>
+                    <div style="font-size:1.5em;">👤</div>
                     <div>
-                        <strong id="target-disp-name" style="font-size: 1.2em; color:#f8fafc;">Select Friend to Chat</strong>
-                        <small style="display:block; color:#94a3b8;">Encrypted Channel</small>
+                        <strong id="target-disp-name" style="font-size: 1.2em; color:#f8fafc;">Direct Encrypted Chat</strong>
+                        <small style="display:block; color:#94a3b8;">Realtime WebSocket</small>
                     </div>
                 </div>
                 <span style="background:#059669; color:#ffffff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted</span>
@@ -343,44 +346,66 @@ FULL_UI_HTML = """
                 document.querySelectorAll('.tab-btn')[2].classList.add('active');
                 document.getElementById('form-rec').classList.add('active');
             }
-            document.getElementById('auth-msg').innerText = "";
+            const msgEl = document.getElementById('auth-msg');
+            msgEl.innerText = "";
         }
 
         async function apiLogin() {
             const u = document.getElementById('l_u').value.trim();
             const p = document.getElementById('l_p').value.trim();
-            if(!u || !p) return document.getElementById('auth-msg').innerText = "Enter username & password";
+            const msgEl = document.getElementById('auth-msg');
+            msgEl.style.color = "#ef4444";
 
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
-            if(res.ok) {
-                initUserSession(data.user);
-            } else {
-                document.getElementById('auth-msg').innerText = data.detail || "Login failed";
+            if(!u || !p) {
+                msgEl.innerText = "يرجى كتابة اسم المستخدم وكلمة السر";
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                if(res.ok && data.status === "success") {
+                    initUserSession(data.user);
+                } else {
+                    msgEl.innerText = data.detail || "فشل تسجيل الدخول";
+                }
+            } catch(e) {
+                msgEl.innerText = "خطأ في الاتصال بالسيرفر";
             }
         }
 
         async function apiRegister() {
             const u = document.getElementById('r_u').value.trim();
             const p = document.getElementById('r_p').value.trim();
-            if(!u || !p) return document.getElementById('auth-msg').innerText = "Enter username & password";
+            const msgEl = document.getElementById('auth-msg');
 
-            const res = await fetch('/api/register', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, password: p})
-            });
-            const data = await res.json();
-            if(res.ok) {
-                document.getElementById('auth-msg').style.color = "#10b981";
-                document.getElementById('auth-msg').innerText = `SUCCESS! PERMANENT ID: ${data.user_id} | SAVE RECOVERY KEY: ${data.recovery_key}`;
-            } else {
-                document.getElementById('auth-msg').style.color = "#ef4444";
-                document.getElementById('auth-msg').innerText = data.detail || "Registration failed";
+            if(!u || !p) {
+                msgEl.style.color = "#ef4444";
+                msgEl.innerText = "يرجى كتابة اسم المستخدم وكلمة السر";
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                if(res.ok && data.status === "success") {
+                    msgEl.style.color = "#10b981";
+                    msgEl.innerText = `تم إنشاء الحساب! ID: ${data.user_id} | احفظ مفتاح الاستعادة: ${data.recovery_key}`;
+                } else {
+                    msgEl.style.color = "#ef4444";
+                    msgEl.innerText = data.detail || "فشل إنشاء الحساب";
+                }
+            } catch(e) {
+                msgEl.style.color = "#ef4444";
+                msgEl.innerText = "خطأ في الاتصال بالسيرفر";
             }
         }
 
@@ -388,19 +413,25 @@ FULL_UI_HTML = """
             const u = document.getElementById('rec_u').value.trim();
             const k = document.getElementById('rec_k').value.trim();
             const p = document.getElementById('rec_p').value.trim();
+            const msgEl = document.getElementById('auth-msg');
 
-            const res = await fetch('/api/recover', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: u, recovery_key: k, new_password: p})
-            });
-            const data = await res.json();
-            if(res.ok) {
-                document.getElementById('auth-msg').style.color = "#10b981";
-                document.getElementById('auth-msg').innerText = "Password reset successfully! You can login now.";
-            } else {
-                document.getElementById('auth-msg').style.color = "#ef4444";
-                document.getElementById('auth-msg').innerText = data.detail || "Recovery failed";
+            try {
+                const res = await fetch('/api/recover', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, recovery_key: k, new_password: p})
+                });
+                const data = await res.json();
+                if(res.ok && data.status === "success") {
+                    msgEl.style.color = "#10b981";
+                    msgEl.innerText = "تم إعادة تعيين كلمة السر بنجاح! يمكنك الآن تسجيل الدخول.";
+                } else {
+                    msgEl.style.color = "#ef4444";
+                    msgEl.innerText = data.detail || "فشلت عملية الاستعادة";
+                }
+            } catch(e) {
+                msgEl.style.color = "#ef4444";
+                msgEl.innerText = "خطأ في الاتصال بالسيرفر";
             }
         }
 
@@ -417,7 +448,6 @@ FULL_UI_HTML = """
 
             document.getElementById('auth-modal').style.display = 'none';
 
-            // Connect Realtime WebSocket
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${currentUser}`);
 
@@ -440,8 +470,8 @@ FULL_UI_HTML = """
             const target = document.getElementById("target-user-input").value.trim();
             const msg = input.value.trim();
 
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Session Disconnected");
-            if(!msg || !target) return alert("Specify Recipient and Message");
+            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("الجلسة غير متصلة");
+            if(!msg || !target) return alert("حدد المستخدم المستلم واكتب الرسالة");
 
             ws.send(JSON.stringify({ recipient: target, message: msg }));
             input.value = "";
@@ -476,7 +506,6 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
             content = data.get("message")
 
             if content and recipient:
-                # Encrypt message before saving into database
                 enc_content = cipher.encrypt(content.encode()).decode()
                 msg_id = secrets.token_hex(8)
 
