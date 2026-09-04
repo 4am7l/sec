@@ -83,12 +83,20 @@ def create_user(username, password_hash, recovery_hash, user_id, role="user"):
 def update_user_field(username, updates_dict):
     supabase.table("users").update(updates_dict).eq("username", username).execute()
 
+# --- محسن: استعلام مدمج وسريع بجلب الرسائل بدلاً من استعلامين ---
 def get_messages(user1, user2):
-    res1 = supabase.table("messages").select("*").eq("sender", user1).eq("recipient", user2).execute().data
-    res2 = supabase.table("messages").select("*").eq("sender", user2).eq("recipient", user1).execute().data
-    all_msgs = res1 + res2
-    all_msgs.sort(key=lambda x: x["created_at"])
-    return all_msgs
+    try:
+        res = supabase.table("messages").select("*").or_(
+            f"and(sender.eq.{user1},recipient.eq.{user2}),and(sender.eq.{user2},recipient.eq.{user1})"
+        ).order("created_at", desc=False).execute()
+        return res.data
+    except Exception:
+        # احتياطي في حال حدوث رمز خاص في الأسماء
+        res1 = supabase.table("messages").select("*").eq("sender", user1).eq("recipient", user2).execute().data
+        res2 = supabase.table("messages").select("*").eq("sender", user2).eq("recipient", user1).execute().data
+        all_msgs = res1 + res2
+        all_msgs.sort(key=lambda x: x["created_at"])
+        return all_msgs
 
 def send_message(msg_id, sender, recipient, content_enc, burn=False, reply=None):
     payload = {
@@ -700,7 +708,8 @@ else:
 
                     chat_container = st.container(height=430)
 
-                    @st.fragment(run_every="2s")
+                    # تم إلغاء run_every="2s" والاعتماد على الاستماع الفوري WebSocket Realtime
+                    @st.fragment
                     def render_live_chat():
                         msgs_to_burn = []
                         filtered_msgs = get_messages(current_user, target_chat)
@@ -824,6 +833,26 @@ else:
                         if msgs_to_burn:
                             for bm in msgs_to_burn:
                                 delete_message(bm["id"])
+
+                        # --- كود الاستماع اللحظي الفوري عبر WebSocket ---
+                        components.html(f"""
+                        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+                        <script>
+                            const SUPABASE_URL = "{SUPABASE_URL}";
+                            const SUPABASE_KEY = "{SUPABASE_KEY}";
+                            const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+                            supabase
+                                .channel('realtime_chat_{current_user}_{target_chat}')
+                                .on('postgres_changes', {{ event: 'INSERT', schema: 'public', table: 'messages' }}, payload => {{
+                                    if ((payload.new.sender === '{current_user}' && payload.new.recipient === '{target_chat}') ||
+                                        (payload.new.sender === '{target_chat}' && payload.new.recipient === '{current_user}')) {{
+                                        window.parent.postMessage({{type: 'streamlit:rerun'}, '*'});
+                                    }}
+                                }})
+                                .subscribe();
+                        </script>
+                        """, height=0)
 
                     render_live_chat()
 
