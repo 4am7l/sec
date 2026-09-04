@@ -1,3 +1,7 @@
-streamlit
-cryptography
+fastapi
+uvicorn
 supabase
+cryptography
+jinja2
+python-multipart
+websockets
