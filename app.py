@@ -108,18 +108,16 @@ async def register_user(data: dict):
 @app.post("/api/login")
 async def login_user(data: dict):
     if not supabase:
-        raise HTTPException(status_code=500, detail="خطأ في الداتابيز")
+        return {"status": "error", "detail": "خطأ في اتصال قاعدة البيانات"}
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     try:
         res = supabase.table("users").select("*").eq("username", username).execute()
         if not res.data or res.data[0]["password"] != hash_data(password):
-            raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة المرور غير صحيحة")
+            return {"status": "error", "detail": "اسم المستخدم أو كلمة المرور غير صحيحة"}
         return {"status": "success", "user": res.data[0]}
-    except HTTPException as he:
-        raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": "error", "detail": str(e)}
 
 @app.get("/api/get_user/{username}")
 async def get_user_data(username: str):
@@ -449,7 +447,13 @@ FULL_UI_HTML = """
             const u = document.getElementById('l_u').value.trim();
             const p = document.getElementById('l_p').value.trim();
             const errBox = document.getElementById('auth-err-msg');
-            errBox.innerText = "جاري التحقق...";
+            
+            if(!u || !p) {
+                errBox.innerText = "الرجاء إدخال اسم المستخدم وكلمة المرور";
+                return;
+            }
+
+            errBox.innerText = "جاري تسجيل الدخول...";
 
             try {
                 const res = await fetch('/api/login', {
@@ -458,14 +462,14 @@ FULL_UI_HTML = """
                     body: JSON.stringify({username: u, password: p})
                 });
                 const data = await res.json();
-                if(res.ok) {
+                if(data.status === "success") {
                     errBox.innerText = "";
                     initUserSession(data.user);
                 } else {
-                    errBox.innerText = data.detail || "خطأ في تسجيل الدخول";
+                    errBox.innerText = data.detail || "خطأ في معلومات الدخول";
                 }
             } catch(err) {
-                errBox.innerText = "فشل الاتصال بالخادم";
+                errBox.innerText = "فشل الاتصال بالخادم، تأكد من الإنترنت أو أعِد المحاولة";
             }
         }
 
@@ -473,7 +477,13 @@ FULL_UI_HTML = """
             const u = document.getElementById('r_u').value.trim();
             const p = document.getElementById('r_p').value.trim();
             const errBox = document.getElementById('auth-err-msg');
-            errBox.innerText = "جاري الإنشاء...";
+            
+            if(!u || !p) {
+                errBox.innerText = "الرجاء تعبئة الحقول المطلوبة";
+                return;
+            }
+
+            errBox.innerText = "جاري إنشاء الحساب...";
 
             try {
                 const res = await fetch('/api/register', {
@@ -484,7 +494,7 @@ FULL_UI_HTML = """
                 const data = await res.json();
                 if(res.ok) {
                     errBox.innerText = "";
-                    alert(`تم التسجيل بنجاح! احتفظ بـ ID: ${data.user_id}`);
+                    alert(`تم التسجيل بنجاح! ID الخاص بك: ${data.user_id}`);
                     switchAuthTab('login');
                 } else {
                     errBox.innerText = data.detail || "خطأ في التسجيل";
@@ -766,7 +776,7 @@ FULL_UI_HTML = """
             allUsersCache.forEach(u => {
                 if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || (u.display_name && u.display_name.toLowerCase().includes(q)) || u.user_id.toLowerCase().includes(q))) {
                     const isFriend = (userData.friends || []).includes(u.username);
-                    const isPending = (u.friend_requests || []).includes(u.username);
+                    const isPending = (u.friend_requests || []).includes(userData.username);
                     const ud = getUserDetails(u.username);
 
                     let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
@@ -946,7 +956,7 @@ FULL_UI_HTML = """
 
         function showPage(pageId, btnEl) {
             document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach, (el => el.classList.remove('active'));
             document.getElementById('page-' + pageId).classList.add('active');
             if(btnEl) btnEl.classList.add('active');
             if(pageId === 'friends' || pageId === 'blocklist' || pageId === 'messages') refreshUserData();
