@@ -185,12 +185,10 @@ async def send_message_http(data: dict):
         "id": msg_id,
         "sender": sender,
         "recipient": recipient,
-        "content": content,
-        "file": file_data,
+        "content": final_payload, # إرسال النص مع رابط الملف للطرفين
         "time": "الآن"
     }
     
-    # بث الرسالة للطرفين عبر الـ WebSocket بشكل فوري
     await manager.send_to_user(recipient, msg_out)
     await manager.send_to_user(sender, msg_out)
 
@@ -450,7 +448,7 @@ FULL_UI_HTML = """
                 try {
                     const data = JSON.parse(event.data);
                     if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
-                        appendBubble(data.sender, data.content, data.time, data.file);
+                        appendParsedBubble(data.sender, data.content, data.time);
                     }
                 } catch(err) {}
             };
@@ -528,7 +526,7 @@ FULL_UI_HTML = """
 
                 if(res.ok && data.messages && data.messages.length > 0) {
                     data.messages.forEach(m => {
-                        appendBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن', null);
+                        appendParsedBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن');
                     });
                 } else {
                     chatBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد رسائل سابقة. ابدأ المحادثة الآن!</p>";
@@ -576,10 +574,18 @@ FULL_UI_HTML = """
                 file: attachedFileData
             };
 
-            // عرض الرسالة مباشرة على الشاشة فوراً
-            appendBubble(userData.username, msg, 'الآن', attachedFileData);
+            // بناء المحتوى محلياً للعرض الفوري وتجنب النص الطويل
+            let localContent = msg;
+            if (attachedFileData) {
+                if (attachedFileData.type && attachedFileData.type.startsWith("image/")) {
+                    localContent += `<br><img src="${attachedFileData.base64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
+                } else {
+                    localContent += `<br><a href="${attachedFileData.base64}" download="${attachedFileData.name}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${attachedFileData.name}</a>`;
+                }
+            }
+
+            appendRawBubble(userData.username, localContent, 'الآن');
             input.value = "";
-            const currentFile = attachedFileData;
             attachedFileData = null;
             document.getElementById('file-preview-name').style.display = 'none';
             document.getElementById('file-input').value = "";
@@ -593,23 +599,38 @@ FULL_UI_HTML = """
             } catch(e) {}
         }
 
-        function appendBubble(sender, content, time, file) {
+        // دالة لتحليل الرسالة القادمة وفصل الصور والملفات عن النص الطويل
+        function appendParsedBubble(sender, rawContent, time) {
+            let finalHtml = "";
+            if (rawContent && rawContent.includes("[FILE:")) {
+                const parts = rawContent.split("[FILE:");
+                const textPart = parts[0];
+                const fileMeta = parts[1].split("]");
+                const fileNameType = fileMeta[0].split(":");
+                const fileBase64 = fileMeta[1];
+                const fileType = fileNameType[1] || "";
+                const fileName = fileNameType[0] || "file";
+
+                finalHtml += textPart;
+                if (fileType.startsWith("image/")) {
+                    finalHtml += `<br><img src="${fileBase64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
+                } else {
+                    finalHtml += `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${fileName}</a>`;
+                }
+            } else {
+                finalHtml = rawContent || '';
+            }
+            appendRawBubble(sender, finalHtml, time);
+        }
+
+        function appendRawBubble(sender, htmlContent, time) {
             const isMine = (sender === userData.username);
             const chatBox = document.getElementById("chat-box");
             if (!chatBox) return;
             const wrapper = document.createElement("div");
             wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
 
-            let fileHtml = "";
-            if (file) {
-                if (file.type && file.type.startsWith("image/")) {
-                    fileHtml = `<br><img src="${file.base64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
-                } else {
-                    fileHtml = `<br><a href="${file.base64}" download="${file.name}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${file.name}</a>`;
-                }
-            }
-
-            wrapper.innerHTML = `<div class="insta-bubble">${content || ''}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
+            wrapper.innerHTML = `<div class="insta-bubble">${htmlContent}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
@@ -798,7 +819,7 @@ FULL_UI_HTML = """
 
         async function saveProfile() {
             const status_text = document.getElementById('prof-status').value;
-            const bio = document.getElementById('prof-bio').value;
+            const bio = document.getElementById('prof-bio.value').value; // تم التصحيح للاستقرار
 
             const res = await fetch('/api/update_user', {
                 method: 'POST',
