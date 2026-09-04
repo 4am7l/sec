@@ -5,6 +5,7 @@ import os
 import secrets
 import hashlib
 import string
+import base64
 from cryptography.fernet import Fernet
 from supabase import create_client, Client
 
@@ -187,16 +188,18 @@ FULL_UI_HTML = """
         .card-box { background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px; text-align: center; flex: 1; }
 
         .chat-header-bar { background: #111827; padding: 14px 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
-        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; background: #0b0f19; border-radius: 16px; }
+        .chat-message-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; background: #0b0f19; border-radius: 16px; }
         .msg-wrapper { display: flex; width: 100%; }
         .msg-wrapper.sent { justify-content: flex-end; }
         .msg-wrapper.received { justify-content: flex-start; }
-        .insta-bubble { max-width: 68%; padding: 12px 16px; border-radius: 18px; font-size: 0.95em; line-height: 1.45; }
+        .insta-bubble { max-width: 68%; padding: 12px 16px; border-radius: 18px; font-size: 0.95em; line-height: 1.45; word-break: break-word; }
         .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; }
         .received .insta-bubble { background: #1e293b; color: #f1f5f9; }
-        .input-bar { background: #111827; padding: 16px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); display: flex; gap: 12px; margin-top: 10px; }
-        .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; color: #fff; outline: none; height: 50px; }
-        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 24px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+
+        .input-bar { background: #111827; padding: 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+        .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 14px; color: #fff; outline: none; height: 45px; resize: none; font-size: 0.95em; }
+        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 20px; height: 45px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .attach-label { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); padding: 0 14px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2em; }
     </style>
 </head>
 <body>
@@ -258,14 +261,19 @@ FULL_UI_HTML = """
                 <span style="background:#059669; color:#fff; padding:4px 10px; border-radius:12px; font-size:0.75em; font-weight:bold;">🔒 Encrypted</span>
             </div>
             <input type="text" id="target-user-input" placeholder="Recipient Username..." style="padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; width:260px; outline:none; margin-bottom:10px;">
+            
             <div class="chat-message-container" id="chat-box"></div>
+
+            <div id="file-preview-name" style="font-size:0.8em; color:#60a5fa; margin-top:4px; display:none;"></div>
+
             <div class="input-bar">
-                <textarea id="msg-input" placeholder="Message..."></textarea>
+                <label class="attach-label" for="file-input">📎</label>
+                <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
+                <textarea id="msg-input" placeholder="Write a message..." onkeydown="handleEnterKey(event)"></textarea>
                 <button class="send-btn" onclick="sendMsg()">SEND 🚀</button>
             </div>
         </div>
 
-        <!-- 👥 FRIENDS MANAGEMENT PAGE EXACT STREAMLIT TABS MATCH -->
         <div class="page-content" id="page-friends">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <h3>👥 Friend Management</h3>
@@ -278,18 +286,15 @@ FULL_UI_HTML = """
                 <button class="st-tab-btn" onclick="switchStTab('requests', this)">📩 Requests</button>
             </div>
 
-            <!-- TAB 1: SEARCH & ADD -->
             <div class="st-tab-content active" id="tab-search">
                 <input type="text" id="s_query_key" placeholder="Search user by Username or ID (e.g. #A123)" style="width:100%; padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none; margin-bottom:10px;" oninput="searchUsersLive()">
                 <div id="search-results-list"></div>
             </div>
 
-            <!-- TAB 2: MY FRIENDS -->
             <div class="st-tab-content" id="tab-myfriends">
                 <div id="my-friends-tab-list"></div>
             </div>
 
-            <!-- TAB 3: REQUESTS -->
             <div class="st-tab-content" id="tab-requests">
                 <div id="requests-tab-list"></div>
             </div>
@@ -317,6 +322,7 @@ FULL_UI_HTML = """
         let ws = null;
         let userData = null;
         let allUsersCache = [];
+        let attachedFileData = null;
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -365,7 +371,7 @@ FULL_UI_HTML = """
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${userData.username}`);
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
-                appendBubble(data.sender, data.content, data.time);
+                appendBubble(data.sender, data.content, data.time, data.file);
             };
             refreshUserData();
         }
@@ -404,6 +410,71 @@ FULL_UI_HTML = """
             document.querySelectorAll('.st-tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById('tab-' + tabId).classList.add('active');
             btnEl.classList.add('active');
+        }
+
+        function handleEnterKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMsg();
+            }
+        }
+
+        function handleFileSelect(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                attachedFileData = {
+                    name: file.name,
+                    type: file.type,
+                    base64: e.target.result
+                };
+                const prev = document.getElementById('file-preview-name');
+                prev.innerText = `📁 Attached: ${file.name}`;
+                prev.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function sendMsg() {
+            const input = document.getElementById("msg-input");
+            const target = document.getElementById("target-user-input").value.trim();
+            const msg = input.value.trim();
+
+            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Session Disconnected! Please relogin.");
+            if(!target) return alert("Please specify target username.");
+            if(!msg && !attachedFileData) return;
+
+            ws.send(JSON.stringify({
+                recipient: target,
+                message: msg,
+                file: attachedFileData
+            }));
+
+            input.value = "";
+            attachedFileData = null;
+            document.getElementById('file-preview-name').style.display = 'none';
+            document.getElementById('file-input').value = "";
+        }
+
+        function appendBubble(sender, content, time, file) {
+            const isMine = (sender === userData.username);
+            const chatBox = document.getElementById("chat-box");
+            const wrapper = document.createElement("div");
+            wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
+
+            let fileHtml = "";
+            if (file) {
+                if (file.type.startsWith("image/")) {
+                    fileHtml = `<br><img src="${file.base64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
+                } else {
+                    fileHtml = `<br><a href="${file.base64}" download="${file.name}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 Download ${file.name}</a>`;
+                }
+            }
+
+            wrapper.innerHTML = `<div class="insta-bubble">${content || ''}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'NOW'}</span></div>`;
+            chatBox.appendChild(wrapper);
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         function searchUsersLive() {
@@ -449,7 +520,6 @@ FULL_UI_HTML = """
         }
 
         function renderFriendsTabs() {
-            // Render My Friends
             const myfBox = document.getElementById('my-friends-tab-list');
             myfBox.innerHTML = "";
             const flist = userData.friends || [];
@@ -468,7 +538,6 @@ FULL_UI_HTML = """
                 });
             }
 
-            // Render Requests
             const reqBox = document.getElementById('requests-tab-list');
             reqBox.innerHTML = "";
             const reqs = userData.friend_requests || [];
@@ -584,24 +653,19 @@ FULL_UI_HTML = """
             if(pageId === 'friends' || pageId === 'blocklist') refreshUserData();
         }
 
-        function sendMsg() {
-            const input = document.getElementById("msg-input");
-            const target = document.getElementById("target-user-input").value.trim();
-            const msg = input.value.trim();
-            if(!ws || ws.readyState !== WebSocket.OPEN) return alert("Not Connected");
-            if(!msg || !target) return alert("Select recipient and write message");
-            ws.send(JSON.stringify({ recipient: target, message: msg }));
-            input.value = "";
-        }
+        async function saveProfile() {
+            const status_text = document.getElementById('prof-status').value;
+            const bio = document.getElementById('prof-bio').value;
 
-        function appendBubble(sender, content, time) {
-            const isMine = (sender === userData.username);
-            const chatBox = document.getElementById("chat-box");
-            const wrapper = document.createElement("div");
-            wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
-            wrapper.innerHTML = `<div class="insta-bubble">${content}<span class="msg-time" style="font-size:0.65em; display:block; opacity:0.7;">${time || 'NOW'}</span></div>`;
-            chatBox.appendChild(wrapper);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            const res = await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: {status_text, bio}})
+            });
+            if(res.ok) {
+                alert("Profile Saved!");
+                refreshUserData();
+            }
         }
     </script>
 </body>
@@ -621,9 +685,10 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
             sender = username
             recipient = data.get("recipient")
             content = data.get("message")
+            file = data.get("file")
 
-            if content and recipient and supabase:
-                enc_content = cipher.encrypt(content.encode()).decode()
+            if (content or file) and recipient and supabase:
+                enc_content = cipher.encrypt((content or "").encode()).decode()
                 msg_id = secrets.token_hex(8)
 
                 payload = {
@@ -642,6 +707,7 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
                     "sender": sender,
                     "recipient": recipient,
                     "content": content,
+                    "file": file,
                     "time": "NOW"
                 }
                 await manager.send_to_user(recipient, msg_out)
