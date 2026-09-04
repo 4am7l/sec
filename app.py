@@ -1,11 +1,8 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Form
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import os
-import hashlib
 import secrets
-import string
-import base64
 from cryptography.fernet import Fernet
 from supabase import create_client, Client
 
@@ -13,8 +10,9 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # --- SUPABASE SETUP ---
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://shgxaxtjurbvbqdvmkzt.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_FEE0CeWycaYbelk2VZPTBw_8j7lkftq")
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- ENCRYPTION SETUP ---
@@ -44,9 +42,6 @@ class ConnectionManager:
         if username in self.active_connections:
             del self.active_connections[username]
 
-    async def send_personal_message(self, message: dict, websocket: WebSocket):
-        await websocket.send_json(message)
-
     async def send_to_user(self, recipient: str, message: dict):
         if recipient in self.active_connections:
             await self.active_connections[recipient].send_json(message)
@@ -55,7 +50,7 @@ manager = ConnectionManager()
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 @app.websocket("/ws/{username}")
 async def websocket_endpoint(websocket: WebSocket, username: str):
@@ -68,11 +63,11 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
             content = data.get("message")
 
             if content and recipient:
-                # تشفير الرسالة فوراً
+                # تشفير الرسالة
                 enc_content = cipher.encrypt(content.encode()).decode()
                 msg_id = secrets.token_hex(8)
 
-                # حفظ بالداتابيز
+                # حفظ في قاعدة البيانات Supabase
                 payload = {
                     "id": msg_id,
                     "sender": sender,
@@ -84,7 +79,7 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
                 }
                 supabase.table("messages").insert(payload).execute()
 
-                # بث فوري بـ 0 ملي ثانية للمستقبل والمستلم
+                # بث فوري بـ 0 ملي ثانية عبر WebSocket
                 msg_out = {
                     "id": msg_id,
                     "sender": sender,
