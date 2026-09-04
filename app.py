@@ -88,7 +88,7 @@ async def register_user(data: dict):
         u_id = generate_user_id()
         payload = {
             "username": username,
-            "display_name": username, # الاسم المعروض الافتراضي
+            "display_name": username, 
             "password": hash_data(password),
             "recovery_key": hash_data(rec_key),
             "role": assigned_role,
@@ -127,7 +127,7 @@ async def get_user_data(username: str):
 
 @app.get("/api/get_all_users")
 async def get_all_users_api():
-    res = supabase.table("users").select("username, display_name, user_id, bio, status_text, avatar, friend_requests, friends").execute()
+    res = supabase.table("users").select("username, display_name, user_id, bio, status_text, avatar, friend_requests, friends, blocked").execute()
     return {"status": "success", "users": res.data}
 
 @app.get("/api/get_messages/{u1}/{u2}")
@@ -429,7 +429,7 @@ FULL_UI_HTML = """
         let selectedChatFriend = null;
         let allUsersCache = [];
         let attachedFileData = null;
-        let pendingAvatarBase64 = null; // الصورة المرفوعة الجديدة
+        let pendingAvatarBase64 = null; 
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -511,7 +511,6 @@ FULL_UI_HTML = """
             }
         }
 
-        // دالة مساعدة لاستخراج الصورة، الاسم، والـ Bio
         function getUserDetails(username) {
             const u = allUsersCache.find(x => x.username === username);
             if(u) {
@@ -532,7 +531,6 @@ FULL_UI_HTML = """
             document.getElementById('user-status-disp').innerText = `"${userData.status_text || 'Available'}"`;
             document.getElementById('user-id-disp').innerText = userData.user_id || '#0000';
             
-            // تحديث الحقول في صفحة الإعدادات
             document.getElementById('prof-display-name').value = dispName;
             document.getElementById('prof-status').value = userData.status_text || '';
             document.getElementById('prof-bio').value = userData.bio || '';
@@ -580,7 +578,6 @@ FULL_UI_HTML = """
             }
         }
 
-        // عرض بطاقة البروفايل لأي مستخدم (الكرت الخارجي)
         function showProfileCard(targetUsername) {
             const u = getUserDetails(targetUsername);
             document.getElementById('modal-avatar').innerHTML = u.avatarHtml;
@@ -795,9 +792,10 @@ FULL_UI_HTML = """
                             <strong style="color:#f8fafc;">${ud.name}</strong>
                         </div>
                         <div style="display:flex; gap:6px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#1e293b;" onclick="showProfileCard('${f}')">👁️</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChatFromFriends('${f}')">💬</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="unfriend('${f}')">🗑️</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#1e293b;" title="بروفايل" onclick="showProfileCard('${f}')">👁️</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px;" title="محادثة" onclick="startChatFromFriends('${f}')">💬</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" title="حذف" onclick="unfriend('${f}')">🗑️</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" title="حظر" onclick="blockUser('${f}')">🚫</button>
                         </div>
                     </div>`;
                 });
@@ -870,6 +868,50 @@ FULL_UI_HTML = """
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: userData.username, updates: {friends: myF}})
+            });
+            refreshUserData();
+        }
+
+        async function blockUser(fUser) {
+            let myB = userData.blocked || [];
+            let myF = (userData.friends || []).filter(x => x !== fUser);
+            if(!myB.includes(fUser)) myB.push(fUser);
+
+            await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: {blocked: myB, friends: myF}})
+            });
+            refreshUserData();
+        }
+
+        function renderBlocklist() {
+            const bBox = document.getElementById('blocklist-container');
+            if(!bBox) return;
+            bBox.innerHTML = "";
+            const blist = userData.blocked || [];
+            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8;'>لا يوجد مستخدمين محظورين.</p>";
+            else {
+                blist.forEach(b => {
+                    const ud = getUserDetails(b);
+                    bBox.innerHTML += `
+                    <div class="user-card">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div class="small-avatar">${ud.avatarHtml}</div>
+                            <strong style="color:#f8fafc;">${ud.name}</strong>
+                        </div>
+                        <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="unblock('${b}')">✅ فك الحظر</button>
+                    </div>`;
+                });
+            }
+        }
+
+        async function unblock(bUser) {
+            let myB = (userData.blocked || []).filter(x => x !== bUser);
+            await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, updates: {blocked: myB}})
             });
             refreshUserData();
         }
