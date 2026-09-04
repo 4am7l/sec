@@ -147,23 +147,47 @@ async def search_users(q: str):
     matches = [u for u in res.data if q.lower() in u["username"].lower() or q.upper() in u.get("user_id", "")]
     return {"status": "success", "users": matches}
 
-@app.post("/api/add_friend")
-async def add_friend(data: dict):
+# --- FRIEND REQUESTS SYSTEM ---
+@app.post("/api/send_request")
+async def send_request(data: dict):
     username = data.get("username")
-    friend_name = data.get("friend_name")
+    target_name = data.get("target_name")
     
-    u1_data = supabase.table("users").select("friends").eq("username", username).execute().data[0]
-    f1 = u1_data.get("friends") or []
-    if friend_name not in f1:
-        f1.append(friend_name)
-        supabase.table("users").update({"friends": f1}).eq("username", username).execute()
+    res = supabase.table("users").select("friend_requests").eq("username", target_name).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
         
-    u2_data = supabase.table("users").select("friends").eq("username", friend_name).execute().data[0]
-    f2 = u2_data.get("friends") or []
-    if username not in f2:
-        f2.append(username)
-        supabase.table("users").update({"friends": f2}).eq("username", friend_name).execute()
+    reqs = res.data[0].get("friend_requests") or []
+    if username not in reqs:
+        reqs.append(username)
+        supabase.table("users").update({"friend_requests": reqs}).eq("username", target_name).execute()
         
+    return {"status": "success"}
+
+@app.post("/api/respond_request")
+async def respond_request(data: dict):
+    username = data.get("username")
+    requester = data.get("requester")
+    action = data.get("action") # "accept" or "decline"
+    
+    u_data = supabase.table("users").select("friends, friend_requests").eq("username", username).execute().data[0]
+    reqs = u_data.get("friend_requests") or []
+    friends = u_data.get("friends") or []
+    
+    if requester in reqs:
+        reqs.remove(requester)
+        
+    if action == "accept":
+        if requester not in friends:
+            friends.append(requester)
+        # Add to requester's friends list as well
+        r_data = supabase.table("users").select("friends").eq("username", requester).execute().data[0]
+        r_friends = r_data.get("friends") or []
+        if username not in r_friends:
+            r_friends.append(username)
+            supabase.table("users").update({"friends": r_friends}).eq("username", requester).execute()
+
+    supabase.table("users").update({"friends": friends, "friend_requests": reqs}).eq("username", username).execute()
     return {"status": "success"}
 
 # --- FULL REALTIME INTERFACE ---
@@ -271,6 +295,7 @@ FULL_UI_HTML = """
             <h3>📊 Dashboard Overview</h3>
             <div style="display:flex; gap:15px; margin-top:15px;">
                 <div class="card-box"><h2 style="color:#60a5fa; font-size:2em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
+                <div class="card-box"><h2 style="color:#f59e0b; font-size:2em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
                 <div class="card-box"><h2 style="color:#10b981; font-size:2em;">⚡</h2><small style="color:#94a3b8;">WebSocket Active</small></div>
             </div>
         </div>
@@ -303,14 +328,23 @@ FULL_UI_HTML = """
 
         <div class="page-content" id="page-friends">
             <h3>👥 Friend Management</h3>
-            <div class="form-card">
-                <input type="text" id="friend-search-q" placeholder="Search by Username or Permanent ID (#A123)...">
-                <button class="auth-btn" style="width:100%; margin-top:5px;" onclick="searchFriends()">Search Users 🔍</button>
-            </div>
-            <div id="search-results" style="margin-top:15px;"></div>
             
-            <h4 style="margin-top:20px;">My Friends List</h4>
-            <div id="my-friends-list" style="margin-top:10px;"></div>
+            <div class="form-card">
+                <h4>🔍 Search & Add Users</h4>
+                <input type="text" id="friend-search-q" placeholder="Search Username or ID (#A123)..." style="margin-top:8px;">
+                <button class="auth-btn" style="width:100%;" onclick="searchFriends()">Search 🔍</button>
+                <div id="search-results" style="margin-top:15px;"></div>
+            </div>
+
+            <div class="form-card" style="margin-top:15px;">
+                <h4>📩 Pending Friend Requests</h4>
+                <div id="pending-requests-list" style="margin-top:10px;"></div>
+            </div>
+
+            <div class="form-card" style="margin-top:15px;">
+                <h4>👥 My Friends List</h4>
+                <div id="my-friends-list" style="margin-top:10px;"></div>
+            </div>
         </div>
 
     </div>
@@ -377,7 +411,7 @@ FULL_UI_HTML = """
             if(res.ok) {
                 userData = data.user;
                 updateUIProfile();
-                loadFriendsList();
+                renderRequestsAndFriends();
             }
         }
 
@@ -390,7 +424,9 @@ FULL_UI_HTML = """
             document.getElementById('prof-avatar').value = userData.avatar || '';
 
             const flist = userData.friends || [];
+            const rlist = userData.friend_requests || [];
             document.getElementById('dash-friends-count').innerText = flist.length;
+            document.getElementById('dash-reqs-count').innerText = rlist.length;
 
             if(userData.avatar) {
                 document.getElementById('user-avatar-disp').innerHTML = `<img src="${userData.avatar}">`;
@@ -426,44 +462,75 @@ FULL_UI_HTML = """
             box.innerHTML = "";
             data.users.forEach(u => {
                 if(u.username !== userData.username) {
+                    const isFriend = (userData.friends || []).includes(u.username);
                     box.innerHTML += `
                     <div class="user-card">
                         <div>
                             <strong>${u.username}</strong> (${u.user_id})
                             <p style="font-size:0.8em; color:#94a3b8;">${u.bio || ''}</p>
                         </div>
-                        <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="addFriend('${u.username}')">➕ Add Friend</button>
+                        ${isFriend ? '<span style="color:#10b981; font-weight:bold;">Friend ✅</span>' : `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendRequest('${u.username}')">📩 Send Request</button>`}
                     </div>`;
                 }
             });
         }
 
-        async function addFriend(fname) {
-            const res = await fetch('/api/add_friend', {
+        async function sendRequest(tname) {
+            const res = await fetch('/api/send_request', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({username: userData.username, friend_name: fname})
+                body: JSON.stringify({username: userData.username, target_name: tname})
             });
             if(res.ok) {
-                alert("Friend Added Successfully!");
-                refreshUserData();
+                alert("Friend Request Sent!");
             }
         }
 
-        function loadFriendsList() {
-            const box = document.getElementById('my-friends-list');
-            box.innerHTML = "";
+        function renderRequestsAndFriends() {
+            // Render Pending Requests
+            const reqBox = document.getElementById('pending-requests-list');
+            reqBox.innerHTML = "";
+            const reqs = userData.friend_requests || [];
+            if(reqs.length === 0) {
+                reqBox.innerHTML = "<p style='color:#94a3b8;'>No pending requests.</p>";
+            } else {
+                reqs.forEach(r => {
+                    reqBox.innerHTML += `
+                    <div class="user-card">
+                        <div><strong>${r}</strong> sent you a request</div>
+                        <div>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#059669;" onclick="respondReq('${r}', 'accept')">Accept ✅</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 12px; background:#ef4444;" onclick="respondReq('${r}', 'decline')">Decline ❌</button>
+                        </div>
+                    </div>`;
+                });
+            }
+
+            // Render Friends List
+            const fBox = document.getElementById('my-friends-list');
+            fBox.innerHTML = "";
             const flist = userData.friends || [];
             if(flist.length === 0) {
-                box.innerHTML = "<p style='color:#94a3b8;'>No friends added yet.</p>";
+                fBox.innerHTML = "<p style='color:#94a3b8;'>No friends added yet.</p>";
             } else {
                 flist.forEach(f => {
-                    box.innerHTML += `
+                    fBox.innerHTML += `
                     <div class="user-card">
                         <div><strong>${f}</strong></div>
                         <button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="startChat('${f}')">💬 Chat Direct</button>
                     </div>`;
                 });
+            }
+        }
+
+        async function respondReq(reqName, action) {
+            const res = await fetch('/api/respond_request', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: userData.username, requester: reqName, action: action})
+            });
+            if(res.ok) {
+                refreshUserData();
             }
         }
 
@@ -478,6 +545,7 @@ FULL_UI_HTML = """
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('page-' + pageId).classList.add('active');
             if(btnEl) btnEl.classList.add('active');
+            if(pageId === 'friends') refreshUserData();
         }
 
         function sendMsg() {
@@ -502,46 +570,3 @@ FULL_UI_HTML = """
     </script>
 </body>
 </html>
-"""
-
-@app.get("/", response_class=HTMLResponse)
-async def get_index():
-    return FULL_UI_HTML
-
-@app.websocket("/ws/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: str):
-    await manager.connect(username, websocket)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            sender = username
-            recipient = data.get("recipient")
-            content = data.get("message")
-
-            if content and recipient and supabase:
-                enc_content = cipher.encrypt(content.encode()).decode()
-                msg_id = secrets.token_hex(8)
-
-                payload = {
-                    "id": msg_id,
-                    "sender": sender,
-                    "recipient": recipient,
-                    "content": enc_content,
-                    "burn": False,
-                    "reply": None,
-                    "reactions": {}
-                }
-                supabase.table("messages").insert(payload).execute()
-
-                msg_out = {
-                    "id": msg_id,
-                    "sender": sender,
-                    "recipient": recipient,
-                    "content": content,
-                    "time": "NOW"
-                }
-                await manager.send_to_user(recipient, msg_out)
-                await manager.send_to_user(sender, msg_out)
-
-    except WebSocketDisconnect:
-        manager.disconnect(username)
