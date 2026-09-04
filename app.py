@@ -73,17 +73,17 @@ manager = ConnectionManager()
 @app.post("/api/register")
 async def register_user(data: dict):
     if not supabase:
-        raise HTTPException(status_code=500, detail="خطأ في اتصال الداتابيز")
+        return {"status": "error", "detail": "خطأ في اتصال قاعدة البيانات"}
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     if not username or not password:
-        raise HTTPException(status_code=400, detail="الاسم وكلمة السر مطلوبان")
+        return {"status": "error", "detail": "الاسم وكلمة السر مطلوبان"}
     try:
         res = supabase.table("users").select("username").eq("username", username).execute()
-        if res.data:
-            raise HTTPException(status_code=400, detail="اسم المستخدم موجود سابقاً")
+        if res.data and len(res.data) > 0:
+            return {"status": "error", "detail": "اسم المستخدم موجود سابقاً"}
         all_u = supabase.table("users").select("username").execute()
-        assigned_role = "admin" if len(all_u.data) == 0 else "user"
+        assigned_role = "admin" if not all_u.data or len(all_u.data) == 0 else "user"
         rec_key = generate_recovery_key()
         u_id = generate_user_id()
         payload = {
@@ -103,7 +103,7 @@ async def register_user(data: dict):
         supabase.table("users").insert(payload).execute()
         return {"status": "success", "user_id": u_id, "recovery_key": rec_key}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"status": "error", "detail": str(e)}
 
 @app.post("/api/login")
 async def login_user(data: dict):
@@ -111,25 +111,32 @@ async def login_user(data: dict):
         return {"status": "error", "detail": "خطأ في اتصال قاعدة البيانات"}
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
+    if not username or not password:
+        return {"status": "error", "detail": "الرجاء إدخال اسم المستخدم وكلمة السر"}
     try:
         res = supabase.table("users").select("*").eq("username", username).execute()
-        if not res.data or res.data[0]["password"] != hash_data(password):
-            return {"status": "error", "detail": "اسم المستخدم أو كلمة المرور غير صحيحة"}
-        return {"status": "success", "user": res.data[0]}
+        if not res.data or len(res.data) == 0:
+            return {"status": "error", "detail": "اسم المستخدم غير موجود"}
+        
+        user_record = res.data[0]
+        if user_record.get("password") != hash_data(password):
+            return {"status": "error", "detail": "كلمة المرور غير صحيحة"}
+            
+        return {"status": "success", "user": user_record}
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        return {"status": "error", "detail": f"خطأ سيرفر: {str(e)}"}
 
 @app.get("/api/get_user/{username}")
 async def get_user_data(username: str):
     res = supabase.table("users").select("*").eq("username", username).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="غير موجود")
+    if not res.data or len(res.data) == 0:
+        return {"status": "error", "detail": "غير موجود"}
     return {"status": "success", "user": res.data[0]}
 
 @app.get("/api/get_all_users")
 async def get_all_users_api():
     res = supabase.table("users").select("username, display_name, user_id, bio, status_text, avatar, friend_requests, friends, blocked").execute()
-    return {"status": "success", "users": res.data}
+    return {"status": "success", "users": res.data or []}
 
 @app.get("/api/get_messages/{u1}/{u2}")
 async def get_messages_api(u1: str, u2: str):
@@ -162,7 +169,7 @@ async def send_message_http(data: dict):
     file_data = data.get("file")
 
     if not sender or not recipient or (not content and not file_data):
-        raise HTTPException(status_code=400, detail="بيانات ناقصة")
+        return {"status": "error", "detail": "بيانات ناقصة"}
 
     final_payload = content
     if file_data:
@@ -181,7 +188,7 @@ async def send_message_http(data: dict):
     try:
         supabase.table("messages").insert(db_payload).execute()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"خطأ حفظ الرسالة: {str(e)}")
+        return {"status": "error", "detail": str(e)}
 
     msg_out = {
         "id": msg_id,
@@ -200,9 +207,12 @@ async def send_message_http(data: dict):
 async def update_user(data: dict):
     username = data.get("username")
     updates = data.get("updates", {})
-    supabase.table("users").update(updates).eq("username", username).execute()
-    res = supabase.table("users").select("*").eq("username", username).execute()
-    return {"status": "success", "user": res.data[0]}
+    try:
+        supabase.table("users").update(updates).eq("username", username).execute()
+        res = supabase.table("users").select("*").eq("username", username).execute()
+        return {"status": "success", "user": res.data[0]}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 # --- UI HTML INTERFACE ---
 FULL_UI_HTML = """
@@ -492,7 +502,7 @@ FULL_UI_HTML = """
                     body: JSON.stringify({username: u, password: p})
                 });
                 const data = await res.json();
-                if(res.ok) {
+                if(data.status === "success") {
                     errBox.innerText = "";
                     alert(`تم التسجيل بنجاح! ID الخاص بك: ${data.user_id}`);
                     switchAuthTab('login');
@@ -534,14 +544,14 @@ FULL_UI_HTML = """
             try {
                 const res = await fetch(`/api/get_user/${userData.username}`);
                 const data = await res.json();
-                if(res.ok) {
+                if(res.ok && data.user) {
                     userData = data.user;
                     updateUIProfile();
                     renderChatFriendsSidebar();
                 }
                 const resAll = await fetch('/api/get_all_users');
                 const dataAll = await resAll.json();
-                if(resAll.ok) {
+                if(resAll.ok && dataAll.users) {
                     allUsersCache = dataAll.users;
                     renderFriendsTabs();
                     renderBlocklist();
@@ -567,7 +577,6 @@ FULL_UI_HTML = """
             document.getElementById('user-name-disp').innerText = dispName;
             document.getElementById('user-username-disp').innerText = `@${userData.username}`;
             document.getElementById('user-status-disp').innerText = `"${userData.status_text || 'Available'}"`;
-            document.getElementById('user-id-disp').innerText = userData.user_id || '#0000';
             
             document.getElementById('prof-display-name').value = dispName;
             document.getElementById('prof-status').value = userData.status_text || '';
@@ -774,9 +783,9 @@ FULL_UI_HTML = """
             if(!q) return;
 
             allUsersCache.forEach(u => {
-                if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || (u.display_name && u.display_name.toLowerCase().includes(q)) || u.user_id.toLowerCase().includes(q))) {
+                if(u.username !== userData.username && (u.username.toLowerCase().includes(q) || (u.display_name && u.display_name.toLowerCase().includes(q)) || (u.user_id && u.user_id.toLowerCase().includes(q)))) {
                     const isFriend = (userData.friends || []).includes(u.username);
-                    const isPending = (u.friend_requests || []).includes(userData.username);
+                    const isPending = (u.friend_requests || []).includes(u.username);
                     const ud = getUserDetails(u.username);
 
                     let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 12px;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
