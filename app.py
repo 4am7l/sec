@@ -167,6 +167,7 @@ async def send_message_http(data: dict):
     recipient = data.get("recipient")
     content = data.get("message", "").strip()
     file_data = data.get("file")
+    is_burn = data.get("is_burn", False)
 
     if not sender or not recipient or (not content and not file_data):
         return {"status": "error", "detail": "بيانات ناقصة"}
@@ -174,6 +175,9 @@ async def send_message_http(data: dict):
     final_payload = content
     if file_data:
         final_payload += f"\n[FILE:{file_data['name']}:{file_data['type']}]{file_data['base64']}"
+
+    if is_burn:
+        final_payload = f"[BURN]{final_payload}"
 
     enc_content = cipher.encrypt(final_payload.encode()).decode()
     msg_id = secrets.token_hex(8)
@@ -203,12 +207,19 @@ async def send_message_http(data: dict):
 
     return {"status": "success", "message": msg_out}
 
+@app.post("/api/burn_message")
+async def burn_message(data: dict):
+    msg_id = data.get("id")
+    try:
+        supabase.table("messages").delete().eq("id", msg_id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
 @app.post("/api/update_user")
 async def update_user(data: dict):
     username = data.get("username")
     updates = data.get("updates", {})
-    
-    # منع تكرار الأصدقاء وقوائم الطلبات والحظر جذرياً عبر دمجها بـ Set
     if "friends" in updates and isinstance(updates["friends"], list):
         updates["friends"] = list(set(updates["friends"]))
     if "friend_requests" in updates and isinstance(updates["friend_requests"], list):
@@ -280,11 +291,15 @@ FULL_UI_HTML = """
         .insta-bubble { max-width: 68%; padding: 10px 14px; border-radius: 16px; font-size: 0.95em; word-break: break-word; }
         .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; }
         .received .insta-bubble { background: #1e293b; color: #f1f5f9; }
+        .burn-bubble { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important; border: 1px dashed #fca5a5; cursor: pointer; }
 
-        .input-bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+        .input-bar { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
         .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 14px; color: #fff; outline: none; height: 45px; resize: none; font-size: 0.95em; }
-        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 20px; height: 45px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        .attach-btn { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); padding: 0 14px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2em; }
+        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 16px; height: 45px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .attach-btn, .mic-btn, .burn-toggle-btn { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.2em; transition: 0.2s; }
+        .burn-toggle-btn.active { background: #dc2626; color: #fff; border-color: #f87171; }
+        .mic-btn.recording { background: #ef4444; color: #fff; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
         .st-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px; }
         .st-tab-btn { background: rgba(30, 41, 59, 0.5); color: #94a3b8; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
@@ -383,7 +398,9 @@ FULL_UI_HTML = """
                     <div class="chat-message-container" id="chat-box"></div>
                     <div id="file-preview-name" style="font-size:0.8em; color:#60a5fa; margin-top:4px; display:none;"></div>
                     <div class="input-bar">
-                        <label class="attach-btn" for="file-input">📎</label>
+                        <button class="burn-toggle-btn" id="burn-btn" title="رسالة ذاتية الاحتراق (تختفي بعد القراءة)" onclick="toggleBurnMode()">🔥</button>
+                        <button class="mic-btn" id="mic-btn" title="تسجيل صوتي" onclick="toggleVoiceRecording()">🎤</button>
+                        <label class="attach-btn" for="file-input" title="إرفاق ملف">📎</label>
                         <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
                         <textarea id="msg-input" placeholder="اكتب رسالة..." onkeydown="handleEnterKey(event)"></textarea>
                         <button class="send-btn" onclick="sendMsg()">إرسال 🚀</button>
@@ -448,6 +465,9 @@ FULL_UI_HTML = """
         let allUsersCache = [];
         let attachedFileData = null;
         let pendingAvatarBase64 = null; 
+        let isBurnMode = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -531,7 +551,7 @@ FULL_UI_HTML = """
                 try {
                     const data = JSON.parse(event.data);
                     if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
-                        appendParsedBubble(data.sender, data.content, data.time);
+                        appendParsedBubble(data.id, data.sender, data.content, data.time);
                     }
                 } catch(err) {}
             };
@@ -542,7 +562,6 @@ FULL_UI_HTML = """
 
         function initUserSession(user) {
             userData = user;
-            // تصفية أصدقاء المستخدم محلياً لمنع أي تكرار قديم
             if(userData.friends) {
                 userData.friends = [...new Set(userData.friends)];
             }
@@ -559,7 +578,6 @@ FULL_UI_HTML = """
                 const data = await res.json();
                 if(res.ok && data.user) {
                     userData = data.user;
-                    // تنظيف القوائم لمنع تكرار الأصدقاء أو الطلبات
                     if(userData.friends) userData.friends = [...new Set(userData.friends)];
                     if(userData.friend_requests) userData.friend_requests = [...new Set(userData.friend_requests)];
                     if(userData.blocked) userData.blocked = [...new Set(userData.blocked)];
@@ -688,11 +706,10 @@ FULL_UI_HTML = """
                 chatBox.innerHTML = "";
 
                 if(res.ok && data.messages && data.messages.length > 0) {
-                    // تصفية الرسائل المكررة بناءً على الـ ID لمنع تكرار عرض المحادثات
                     const uniqueMessages = Array.from(new Map(data.messages.map(m => [m.id, m])).values());
                     
                     uniqueMessages.forEach(m => {
-                        appendParsedBubble(m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن');
+                        appendParsedBubble(m.id, m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن');
                     });
                 } else {
                     chatBox.innerHTML = "<p style='color:#94a3b8;'>لا توجد رسائل سابقة. ابدأ المحادثة الآن!</p>";
@@ -706,6 +723,57 @@ FULL_UI_HTML = """
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMsg();
+            }
+        }
+
+        function toggleBurnMode() {
+            isBurnMode = !isBurnMode;
+            const btn = document.getElementById('burn-btn');
+            if(isBurnMode) {
+                btn.classList.add('active');
+                btn.title = "وضع الاحتراق مفعّل (الرسالة ستختفي بمجرد رؤيتها)";
+            } else {
+                btn.classList.remove('active');
+                btn.title = "رسالة ذاتية الاحتراق";
+            }
+        }
+
+        async function toggleVoiceRecording() {
+            const micBtn = document.getElementById('mic-btn');
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    audioChunks = [];
+                    mediaRecorder = new MediaRecorder(stream);
+                    
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const reader = new FileReader();
+                        reader.onload = async function(e) {
+                            attachedFileData = {
+                                name: "voice_note.webm",
+                                type: "audio/webm",
+                                base64: e.target.result
+                            };
+                            await sendMsg();
+                        };
+                        reader.readAsDataURL(audioBlob);
+                    };
+
+                    mediaRecorder.start();
+                    micBtn.classList.add('recording');
+                    micBtn.title = "جارٍ التسجيل... انقر للإيقاف والإرسال";
+                } catch (err) {
+                    alert("لا يمكن الوصول إلى الميكروفون!");
+                }
+            } else {
+                mediaRecorder.stop();
+                micBtn.classList.remove('recording');
+                micBtn.title = "تسجيل صوتي";
             }
         }
 
@@ -737,31 +805,50 @@ FULL_UI_HTML = """
                 sender: userData.username,
                 recipient: selectedChatFriend,
                 message: msg,
-                file: attachedFileData
+                file: attachedFileData,
+                is_burn: isBurnMode
             };
 
             let localContent = msg;
             let tempFile = attachedFileData;
+            let tempBurn = isBurnMode;
 
-            appendParsedBubble(userData.username, localContent + (tempFile ? `\\n[FILE:${tempFile.name}:${tempFile.type}]${tempFile.base64}` : ''), 'الآن');
-            
+            if(tempFile) {
+                localContent += `\\n[FILE:${tempFile.name}:${tempFile.type}]${tempFile.base64}`;
+            }
+            if(tempBurn) {
+                localContent = `[BURN]` + localContent;
+            }
+
             input.value = "";
             attachedFileData = null;
+            isBurnMode = false;
+            document.getElementById('burn-btn').classList.remove('active');
             document.getElementById('file-preview-name').style.display = 'none';
             document.getElementById('file-input').value = "";
 
             try {
-                await fetch('/api/send_message_http', {
+                const res = await fetch('/api/send_message_http', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
+                const data = await res.json();
+                if(data.status === "success") {
+                    appendParsedBubble(data.message.id, data.message.sender, data.message.content, 'الآن');
+                }
             } catch(e) {}
         }
 
-        function appendParsedBubble(sender, rawContent, time) {
+        function appendParsedBubble(msgId, sender, rawContent, time) {
             let textPart = rawContent || '';
             let fileHtml = '';
+            let isBurn = false;
+
+            if (textPart.startsWith("[BURN]")) {
+                isBurn = true;
+                textPart = textPart.replace("[BURN]", "");
+            }
 
             if (textPart.includes("[FILE:")) {
                 const parts = textPart.split("[FILE:");
@@ -774,6 +861,8 @@ FULL_UI_HTML = """
 
                 if (fileType.startsWith("image/")) {
                     fileHtml = `<br><img src="${fileBase64}" style="max-width:200px; border-radius:8px; margin-top:6px; display:block;">`;
+                } else if (fileType.startsWith("audio/")) {
+                    fileHtml = `<br><audio controls src="${fileBase64}" style="width:220px; margin-top:6px;"></audio>`;
                 } else {
                     fileHtml = `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.85em; display:inline-block; margin-top:6px;">📄 تنزيل ${fileName}</a>`;
                 }
@@ -782,12 +871,38 @@ FULL_UI_HTML = """
             const isMine = (sender === userData.username);
             const chatBox = document.getElementById("chat-box");
             if (!chatBox) return;
+
             const wrapper = document.createElement("div");
             wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
+            let bubbleClass = "insta-bubble";
 
-            wrapper.innerHTML = `<div class="insta-bubble">${textPart}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
+            if (isBurn) {
+                bubbleClass += " burn-bubble";
+                if (!isMine) {
+                    wrapper.innerHTML = `<div class="${bubbleClass}" onclick="burnAndReadMessage(this, '${msgId}', \`${textPart}\`, \`${fileHtml}\`)">🔥 رسالة ذاتية الاحتراق (انقر للفتح)</div>`;
+                    chatBox.appendChild(wrapper);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                    return;
+                } else {
+                    textPart = `🔥 [رسالة ذاتية الاحتراق مرسلة] ` + textPart;
+                }
+            }
+
+            wrapper.innerHTML = `<div class="${bubbleClass}">${textPart}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function burnAndReadMessage(element, msgId, textPart, fileHtml) {
+            element.innerHTML = `${textPart}${fileHtml}<span style="font-size:0.65em; display:block; opacity:0.7; text-align:right; margin-top:4px; color:#fca5a5;">تم حرق الرسالة 💥</span>`;
+            element.style.cursor = "default";
+            element.onclick = null;
+
+            await fetch('/api/burn_message', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: msgId})
+            });
         }
 
         function switchStTab(tabId, btnEl) {
@@ -1005,7 +1120,7 @@ async def get_index():
     return FULL_UI_HTML
 
 @app.websocket("/ws/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: str):
+async def websocket_endpoint(websocket: WebSocket, username: `str`):
     await manager.connect(username, websocket)
     try:
         while True:
