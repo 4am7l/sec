@@ -143,9 +143,8 @@ async def get_messages_api(u1: str, u2: str):
         decrypted_msgs = []
         for m in all_msgs:
             try:
-                # فك التشفير الحقيقي قبل إرسالها للواجهة
-                raw_content = m['content']
-                if raw_content.startswith("gAAAAAB"):
+                raw_content = m.get('content', '')
+                if raw_content and raw_content.startswith("gAAAAAB"):
                     m['content'] = cipher.decrypt(raw_content.encode()).decode()
                 else:
                     m['content'] = raw_content
@@ -189,7 +188,7 @@ async def send_message_http(data: dict):
         "id": msg_id,
         "sender": sender,
         "recipient": recipient,
-        "content": content, # إرسال النص الأصلي للطرفين عبر الـ WebSocket
+        "content": content,
         "file": file_data,
         "time": "الآن"
     }
@@ -451,6 +450,7 @@ FULL_UI_HTML = """
             ws = new WebSocket(`${protocol}//${window.location.host}/ws/${userData.username}`);
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
+                // استقبال فوري وعرض الرسالة مباشرة للمحادثة المفتوحة حالياً
                 if (selectedChatFriend && ((data.sender === selectedChatFriend && data.recipient === userData.username) || (data.sender === userData.username && data.recipient === selectedChatFriend))) {
                     appendBubble(data.sender, data.content, data.time, data.file);
                 }
@@ -480,7 +480,7 @@ FULL_UI_HTML = """
             const dataAll = await resAll.json();
             if(resAll.ok) {
                 allUsersCache = dataAll.users;
-                renderFriendsTabs();
+                renderFriendsTabs(); الفقرات
                 renderBlocklist();
             }
         }
@@ -584,10 +584,7 @@ FULL_UI_HTML = """
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                if(res.ok) {
-                    // إظهار الرسالة فوراً في الشاشة للطرف المرسل
-                    appendBubble(userData.username, msg, 'الآن', attachedFileData);
-                } else {
+                if(!res.ok) {
                     alert(data.detail || "فشل إرسال الرسالة");
                 }
             } catch(e) {
