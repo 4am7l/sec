@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title> CYBER MESSENGER</title>
+    <title>⚡ CYBER MESSENGER</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
         
-        /* تثبيت الشاشة بالكامل ومنع أي سكرول خارجي عام */
         html, body { background: #090d16; color: #f1f5f9; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; position: fixed; }
 
         .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.96); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 15px; }
@@ -25,7 +24,6 @@
         .auth-form input { width: 100%; padding: 12px; margin-bottom: 12px; background: #090d16; border: 1px solid #334155; border-radius: 10px; color: #fff; outline: none; font-size: 1em; }
         .auth-btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1em; transition: 0.2s; }
 
-        /* الهيكل الأساسي للتطبيق (ثابت لا يتحرك) */
         body { display: flex; flex-direction: row; }
 
         .sidebar { width: 260px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 15px; display: flex; flex-direction: column; gap: 8px; z-index: 10; flex-shrink: 0; height: 100%; }
@@ -83,7 +81,6 @@
         .modal-avatar-lg { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #3b82f6; margin: 0 auto 12px auto; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 40px; }
         .modal-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
 
-        /* تحويل القائمة الجانبية لشريط سفلي ثابت تماماً كالتطبيقات الحقيقية على الموبايل */
         @media (max-width: 768px) {
             body { flex-direction: column-reverse; }
             .sidebar { width: 100%; height: 60px; min-height: 60px; flex-direction: row; padding: 4px 8px; justify-content: space-around; align-items: center; border-right: none; border-top: 1px solid rgba(255,255,255,0.08); gap: 2px; flex-shrink: 0; }
@@ -251,7 +248,6 @@
         let isBurnMode = false;
         let mediaRecorder = null;
         let audioChunks = [];
-        let processedMsgIds = new Set();
 
         function switchAuthTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -475,7 +471,6 @@
 
         async function openChatWith(friendName, el) {
             selectedChatFriend = friendName;
-            processedMsgIds.clear();
             document.querySelectorAll('.friend-item').forEach(i => i.classList.remove('active'));
             if(el) el.classList.add('active');
 
@@ -491,6 +486,7 @@
                 chatBox.innerHTML = "";
 
                 if(res.ok && data.messages && data.messages.length > 0) {
+                    // فحص الأيدي الفريد للرسائل لمنع أي ازدواجية عند عرض السجل القديم
                     const uniqueMessages = Array.from(new Map(data.messages.map(m => [m.id, m])).values());
                     
                     uniqueMessages.forEach(m => {
@@ -536,7 +532,7 @@
                     };
 
                     mediaRecorder.onstop = async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' الفقرة });
                         const reader = new FileReader();
                         reader.onload = async function(e) {
                             attachedFileData = {
@@ -600,6 +596,7 @@
             document.getElementById('file-input').value = "";
 
             try {
+                // إرسال للسيرفر، ولا يتم رسم شي محلياً بل نعتمد كلياً على الـ WebSocket لمنع أي تكرار
                 await fetch('/api/send_message_http', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -609,8 +606,11 @@
         }
 
         function appendParsedBubble(msgId, sender, rawContent, time) {
-            if (msgId && processedMsgIds.has(msgId)) return;
-            if (msgId) processedMsgIds.add(msgId);
+            // التحقق الفوري هل الـ ID للرسالة موجود أصلاً داخل صندوق الشات لكي لا يتكرر أبداً مهما تنقلت بالمحادثات
+            if (msgId) {
+                const existingBubbles = document.querySelectorAll(`[data-msg-id="${msgId}"]`);
+                if (existingBubbles.length > 0) return;
+            }
 
             let textPart = rawContent || '';
             let fileHtml = '';
@@ -645,6 +645,8 @@
 
             const wrapper = document.createElement("div");
             wrapper.className = "msg-wrapper " + (isMine ? "sent" : "received");
+            if (msgId) wrapper.setAttribute("data-msg-id", msgId);
+
             let bubbleClass = "insta-bubble";
 
             if (isBurn) {
@@ -869,7 +871,7 @@
             await fetch('/api/update_user', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.xml ? JSON.stringify({username: userData.username, updates: {blocked: myB}}) : JSON.stringify({username: userData.username, updates: {blocked: myB}})
+                body: JSON.stringify({username: userData.username, updates: {blocked: myB}})
             });
             refreshUserData();
         }
