@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>⚡ CYBER MESSENGER</title>
+    <title>CYBER MESSENGER</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
         
-        /* تثبيت الشاشة بالكامل منعاً لأي إزاحة أو سكرول عام */
         html, body { background: #090d16; color: #f1f5f9; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; position: fixed; }
 
         .auth-overlay { position: fixed; inset: 0; background: rgba(9, 13, 22, 0.96); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 15px; }
         .auth-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); padding: 30px 25px; border-radius: 20px; width: 100%; max-width: 420px; }
-        .auth-card h1 { color: #3b82f6; font-size: 1.8em; font-weight: 800; text-align: center; }
+        .auth-card h1 { color: #3b82f6; font-size: 1.8em; font-weight: 800; text-align: center; letter-spacing: 1px; }
         .auth-card p { color: #94a3b8; text-align: center; margin-bottom: 20px; font-size: 0.9em; }
         
         .auth-tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #090d16; padding: 5px; border-radius: 12px; }
@@ -27,18 +26,16 @@
 
         body { display: flex; flex-direction: row; }
 
-        /* القائمة الجانبية (تصبح مخفية كدرج جانبي Drawer يفتح ويغلق بزر) */
         .sidebar { width: 260px; background: #111827; border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 15px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; flex-shrink: 0; height: 100%; transition: transform 0.3s ease; }
         .sidebar-profile { text-align: center; margin-bottom: 2px; }
-        .avatar-circle { width: 65px; height: 65px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 24px; margin: 0 auto 6px auto; overflow: hidden; }
+        .avatar-circle { width: 65px; height: 65px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #1e1b4b); color: #f8fafc; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid #3b82f6; font-size: 22px; margin: 0 auto 6px auto; overflow: hidden; text-transform: uppercase; }
         .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
         
         .nav-btn { background: rgba(30, 41, 59, 0.4); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px 14px; text-align: left; font-size: 0.95em; font-weight: 600; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 12px; }
         .nav-btn:hover, .nav-btn.active { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; }
 
-        /* زر القائمة العلوي الخاص بالموبايل */
         .mobile-top-bar { display: none; background: #111827; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 10px 15px; align-items: center; justify-content: space-between; flex-shrink: 0; z-index: 100; }
-        .menu-toggle-btn { background: #1e293b; color: #60a5fa; border: 1px solid rgba(255,255,255,0.1); width: 40px; height: 40px; border-radius: 10px; font-size: 1.2em; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .menu-toggle-btn { background: #1e293b; color: #60a5fa; border: 1px solid rgba(255,255,255,0.1); width: 40px; height: 40px; border-radius: 10px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
         .main-container { flex: 1; display: flex; flex-direction: column; background: #090d16; height: 100%; overflow: hidden; position: relative; min-width: 0; }
         .page-content { flex: 1; display: none; padding: 15px; overflow-y: auto; height: 100%; }
@@ -48,7 +45,7 @@
         .friends-sidebar { width: 240px; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 10px; overflow-y: auto; flex-shrink: 0; height: 100%; }
         .friend-item { padding: 10px; background: #090d16; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .friend-item:hover, .friend-item.active { background: #2563eb; border-color: #3b82f6; }
-        .small-avatar { width: 34px; height: 34px; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 13px; flex-shrink: 0; }
+        .small-avatar { width: 34px; height: 34px; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 13px; flex-shrink: 0; text-transform: uppercase; }
         .small-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         .chat-main-area { flex: 1; display: flex; flex-direction: column; background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 12px; height: 100%; overflow: hidden; min-width: 0; }
@@ -59,16 +56,16 @@
         .msg-wrapper.sent { justify-content: flex-end; }
         .msg-wrapper.received { justify-content: flex-start; }
         .insta-bubble { max-width: 78%; padding: 10px 14px; border-radius: 16px; font-size: 0.95em; word-break: break-word; }
-        .sent .insta-bubble { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; }
+        .sent .insta-bubble { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; }
         .received .insta-bubble { background: #1e293b; color: #f1f5f9; }
-        .burn-bubble { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important; border: 1px dashed #fca5a5; cursor: pointer; }
+        .burn-bubble { background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%) !important; border: 1px solid #991b1b; cursor: pointer; }
 
         .input-bar { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-shrink: 0; }
         .input-bar textarea { flex: 1; background: #090d16; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px 12px; color: #fff; outline: none; height: 42px; resize: none; font-size: 0.95em; }
-        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 14px; height: 42px; border-radius: 12px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
-        .attach-btn, .mic-btn, .burn-toggle-btn { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.1em; flex-shrink: 0; transition: 0.2s; }
-        .burn-toggle-btn.active { background: #dc2626; color: #fff; border-color: #f87171; }
-        .mic-btn.recording { background: #ef4444; color: #fff; animation: pulse 1.5s infinite; }
+        .send-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; padding: 0 14px; height: 42px; border-radius: 12px; font-weight: bold; cursor: pointer; flex-shrink: 0; font-size: 0.9em; }
+        .attach-btn, .mic-btn, .burn-toggle-btn { background: #1e293b; color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.85em; font-weight: 600; flex-shrink: 0; transition: 0.2s; }
+        .burn-toggle-btn.active { background: #7f1d1d; color: #fca5a5; border-color: #991b1b; }
+        .mic-btn.recording { background: #7f1d1d; color: #fff; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 
         .st-tabs { display: flex; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; overflow-x: auto; flex-shrink: 0; }
@@ -84,10 +81,9 @@
         .modal-overlay-bg.active { display: flex; }
         .profile-modal { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; width: 100%; max-width: 340px; padding: 25px; text-align: center; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
         .profile-modal .close-btn { position: absolute; top: 12px; right: 15px; background: transparent; border: none; color: #94a3b8; font-size: 1.4em; cursor: pointer; }
-        .modal-avatar-lg { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #3b82f6; margin: 0 auto 12px auto; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+        .modal-avatar-lg { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #3b82f6; margin: 0 auto 12px auto; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 32px; text-transform: uppercase; }
         .modal-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
 
-        /* تعديلات الموبايل: تثبيت الشاشة وإخفاء القائمة خلف زر القائمة */
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .mobile-top-bar { display: flex; }
@@ -112,21 +108,21 @@
 
     <div class="auth-overlay" id="auth-modal">
         <div class="auth-card">
-            <h1>⚡ CYBER MESSENGER</h1>
-            <p>Encrypted Direct Messaging Platform</p>
+            <h1>CYBER MESSENGER</h1>
+            <p>Secure Encrypted Communication</p>
             <div class="auth-tabs">
-                <button class="tab-btn active" onclick="switchAuthTab('login')">🔑 LOGIN</button>
-                <button class="tab-btn" onclick="switchAuthTab('reg')">📝 REGISTER</button>
+                <button class="tab-btn active" onclick="switchAuthTab('login')">LOGIN</button>
+                <button class="tab-btn" onclick="switchAuthTab('reg')">REGISTER</button>
             </div>
             <div class="auth-form active" id="form-login">
                 <input type="text" id="l_u" placeholder="Username">
                 <input type="password" id="l_p" placeholder="Password">
-                <button class="auth-btn" onclick="apiLogin()">LOGIN 🚀</button>
+                <button class="auth-btn" onclick="apiLogin()">Authenticate</button>
             </div>
             <div class="auth-form" id="form-reg">
                 <input type="text" id="r_u" placeholder="Username">
                 <input type="password" id="r_p" placeholder="Password (8+ chars)">
-                <button class="auth-btn" onclick="apiRegister()">CREATE ACCOUNT ✨</button>
+                <button class="auth-btn" onclick="apiRegister()">Create Account</button>
             </div>
             <div id="auth-err-msg" style="color:#ef4444; font-size:0.85em; text-align:center; margin-top:10px; font-weight:bold;"></div>
         </div>
@@ -134,71 +130,69 @@
 
     <div class="modal-overlay-bg" id="user-profile-modal">
         <div class="profile-modal">
-            <button class="close-btn" onclick="document.getElementById('user-profile-modal').classList.remove('active')">✖</button>
-            <div id="modal-avatar" class="modal-avatar-lg">👤</div>
+            <button class="close-btn" onclick="document.getElementById('user-profile-modal').classList.remove('active')">X</button>
+            <div id="modal-avatar" class="modal-avatar-lg">U</div>
             <h2 id="modal-display-name" style="color:#f8fafc; margin-bottom:4px; font-weight:800;">Name</h2>
             <p id="modal-username" style="color:#60a5fa; font-size:0.9em; margin-bottom:20px; font-family:monospace;">@username</p>
             <div style="background:#090d16; padding:15px; border-radius:12px; text-align:right; border:1px solid rgba(255,255,255,0.05);">
-                <p style="color:#94a3b8; font-size:0.85em; margin-bottom:6px;"><strong>📝 النبذة التعريفيّة (Bio):</strong></p>
-                <p id="modal-bio" style="color:#e2e8f0; font-size:0.95em; line-height:1.5;">لا توجد نبذة حتى الآن.</p>
+                <p style="color:#94a3b8; font-size:0.85em; margin-bottom:6px;"><strong>Biography:</strong></p>
+                <p id="modal-bio" style="color:#e2e8f0; font-size:0.95em; line-height:1.5;">No bio available.</p>
             </div>
         </div>
     </div>
 
-    <!-- القائمة الجانبية (تفتح بغلق وفتح عبر الزر) -->
     <div class="sidebar" id="sidebar-menu">
         <div class="sidebar-profile">
-            <div class="avatar-circle" id="user-avatar-disp">👤</div>
+            <div class="avatar-circle" id="user-avatar-disp">U</div>
             <h3 id="user-name-disp" style="color:#f8fafc; font-weight:700;">User</h3>
             <p id="user-username-disp" style="color: #94a3b8; font-size: 0.82em; margin-bottom: 6px;">@username</p>
-            <p id="user-status-disp" style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">"Available"</p>
+            <p id="user-status-disp" style="color: #60a5fa; font-size: 0.82em; margin-bottom: 6px;">Available</p>
         </div>
         <hr style="border:0.5px solid rgba(255,255,255,0.08); margin: 10px 0;">
-        <button class="nav-btn active" onclick="showPage('dashboard', this)">🏠 Dashboard</button>
-        <button class="nav-btn" onclick="showPage('messages', this)">💬 Messages</button>
-        <button class="nav-btn" onclick="showPage('friends', this)">👥 Friends</button>
-        <button class="nav-btn" onclick="showPage('profile', this)">👤 Profile</button>
-        <button class="nav-btn" onclick="showPage('blocklist', this)">🚫 Blocklist</button>
-        <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">🚪 Logout</button>
+        <button class="nav-btn active" onclick="showPage('dashboard', this)">Dashboard</button>
+        <button class="nav-btn" onclick="showPage('messages', this)">Messages</button>
+        <button class="nav-btn" onclick="showPage('friends', this)">Friends</button>
+        <button class="nav-btn" onclick="showPage('profile', this)">Settings</button>
+        <button class="nav-btn" onclick="showPage('blocklist', this)">Blocked</button>
+        <button class="nav-btn" style="color:#ef4444;" onclick="location.reload()">Logout</button>
     </div>
 
     <div class="main-container">
-        <!-- شريط علوي للموبايل يحتوي على زر القائمة -->
         <div class="mobile-top-bar">
-            <button class="menu-toggle-btn" onclick="toggleSidebar()">☰</button>
-            <span style="font-weight:700; color:#3b82f6;">⚡ CYBER MESSENGER</span>
+            <button class="menu-toggle-btn" onclick="toggleSidebar()">[=]</button>
+            <span style="font-weight:700; color:#3b82f6; font-size:0.95em; letter-spacing:1px;">CYBER MESSENGER</span>
             <div style="width: 40px;"></div>
         </div>
 
         <div class="page-content active" id="page-dashboard">
-            <h3>📊 System Overview</h3>
+            <h3 style="font-weight:700;">System Overview</h3>
             <div style="display:flex; gap:12px; margin-top:15px; flex-wrap:wrap;">
                 <div class="card-box"><h2 style="color:#60a5fa; font-size:1.8em;" id="dash-friends-count">0</h2><small style="color:#94a3b8;">Active Friends</small></div>
                 <div class="card-box"><h2 style="color:#f59e0b; font-size:1.8em;" id="dash-reqs-count">0</h2><small style="color:#94a3b8;">Pending Requests</small></div>
-                <div class="card-box"><h2 style="color:#10b981; font-size:1.8em;">⚡</h2><small style="color:#94a3b8;">Cloud Active</small></div>
+                <div class="card-box"><h2 style="color:#10b981; font-size:1.8em;">OK</h2><small style="color:#94a3b8;">Cloud Status</small></div>
             </div>
         </div>
 
         <div class="page-content" id="page-messages">
             <div class="chat-container-layout">
                 <div class="friends-sidebar">
-                    <h4 style="margin-bottom:6px; color:#60a5fa; font-size:0.85em;">💬 الأصدقاء</h4>
+                    <h4 style="margin-bottom:6px; color:#60a5fa; font-size:0.85em; font-weight:700;">Direct Chats</h4>
                     <div id="chat-friends-list"></div>
                 </div>
                 <div class="chat-main-area">
                     <div class="chat-header-bar">
-                        <div><strong id="target-disp-name" style="font-size:0.9em;">اختر صديقاً للمحادثة</strong></div>
-                        <span style="background:#059669; color:#fff; padding:3px 8px; border-radius:12px; font-size:0.7em; font-weight:bold;">🔒 مشفر</span>
+                        <div><strong id="target-disp-name" style="font-size:0.9em;">Select a conversation</strong></div>
+                        <span style="background:#065f46; color:#34d399; padding:3px 8px; border-radius:12px; font-size:0.7em; font-weight:bold;">ENCRYPTED</span>
                     </div>
                     <div class="chat-message-container" id="chat-box"></div>
                     <div id="file-preview-name" style="font-size:0.8em; color:#60a5fa; margin-top:4px; display:none;"></div>
                     <div class="input-bar">
-                        <button class="burn-toggle-btn" id="burn-btn" title="حرق تلقائي" onclick="toggleBurnMode()">🔥</button>
-                        <button class="mic-btn" id="mic-btn" title="تسجيل صوتي" onclick="toggleVoiceRecording()">🎤</button>
-                        <label class="attach-btn" for="file-input" title="ملف">📎</label>
+                        <button class="burn-toggle-btn" id="burn-btn" title="Self-destruct mode" onclick="toggleBurnMode()">BURN</button>
+                        <button class="mic-btn" id="mic-btn" title="Record Audio" onclick="toggleVoiceRecording()">REC</button>
+                        <label class="attach-btn" for="file-input" title="Attach File">FILE</label>
                         <input type="file" id="file-input" style="display:none;" onchange="handleFileSelect(this)">
-                        <textarea id="msg-input" placeholder="اكتب رسالة..." onkeydown="handleEnterKey(event)"></textarea>
-                        <button class="send-btn" onclick="sendMsg()">إرسال</button>
+                        <textarea id="msg-input" placeholder="Type a message..." onkeydown="handleEnterKey(event)"></textarea>
+                        <button class="send-btn" onclick="sendMsg()">Send</button>
                     </div>
                 </div>
             </div>
@@ -206,16 +200,16 @@
 
         <div class="page-content" id="page-friends">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3 style="font-size:1.1em;">👥 Friend Management</h3>
-                <button class="auth-btn" style="width:auto; padding:6px 12px; font-size:0.85em;" onclick="refreshUserData()">🔄 تحديث</button>
+                <h3 style="font-size:1.1em; font-weight:700;">Friend Management</h3>
+                <button class="auth-btn" style="width:auto; padding:6px 12px; font-size:0.85em;" onclick="refreshUserData()">Refresh</button>
             </div>
             <div class="st-tabs">
-                <button class="st-tab-btn active" onclick="switchStTab('search', this)">🔍 Search & Add</button>
-                <button class="st-tab-btn" onclick="switchStTab('myfriends', this)">👥 My Friends</button>
-                <button class="st-tab-btn" onclick="switchStTab('requests', this)">📩 Requests</button>
+                <button class="st-tab-btn active" onclick="switchStTab('search', this)">Search & Add</button>
+                <button class="st-tab-btn" onclick="switchStTab('myfriends', this)">My Friends</button>
+                <button class="st-tab-btn" onclick="switchStTab('requests', this)">Requests</button>
             </div>
             <div class="st-tab-content active" id="tab-search">
-                <input type="text" id="s_query_key" placeholder="ابحث باسم المستخدم أو الـ ID..." style="width:100%; padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none; margin-bottom:10px;" oninput="searchUsersLive()">
+                <input type="text" id="s_query_key" placeholder="Search by username or ID..." style="width:100%; padding:10px; background:#111827; border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; outline:none; margin-bottom:10px;" oninput="searchUsersLive()">
                 <div id="search-results-list"></div>
             </div>
             <div class="st-tab-content" id="tab-myfriends"><div id="my-friends-tab-list"></div></div>
@@ -223,31 +217,31 @@
         </div>
 
         <div class="page-content" id="page-profile">
-            <h3>👤 Profile Settings</h3>
+            <h3 style="font-weight:700;">Profile Settings</h3>
             <div style="background:#111827; padding:20px; border-radius:16px; margin-top:12px; max-width: 500px; width: 100%;">
                 <div style="text-align:center; margin-bottom: 20px;">
                     <label for="avatar-upload" style="cursor:pointer; display:inline-block;">
-                        <div class="avatar-circle" id="prof-avatar-preview" style="width:90px; height:90px; font-size:35px; margin:0 auto; border:3px dashed #3b82f6;">👤</div>
-                        <p style="color:#60a5fa; font-size:0.85em; margin-top:8px; font-weight:bold;">تغيير الصورة 📷</p>
+                        <div class="avatar-circle" id="prof-avatar-preview" style="width:90px; height:90px; font-size:32px; margin:0 auto; border:3px dashed #3b82f6;">U</div>
+                        <p style="color:#60a5fa; font-size:0.85em; margin-top:8px; font-weight:bold;">Upload Avatar</p>
                     </label>
                     <input type="file" id="avatar-upload" style="display:none;" accept="image/*" onchange="handleAvatarUpload(this)">
                 </div>
 
-                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الاسم المعروض</label>
-                <input type="text" id="prof-display-name" placeholder="اسمك الذي سيظهر" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:12px; margin-top:4px;">
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">Display Name</label>
+                <input type="text" id="prof-display-name" placeholder="Your display name" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:12px; margin-top:4px;">
                 
-                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">الحالة</label>
-                <input type="text" id="prof-status" placeholder="متوفر..." style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:12px; margin-top:4px;">
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">Status</label>
+                <input type="text" id="prof-status" placeholder="Available" style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:12px; margin-top:4px;">
                 
-                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">النبذة التعريفيّة</label>
-                <textarea id="prof-bio" placeholder="اكتب شيئاً عن نفسك..." style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:16px; margin-top:4px; height: 70px; resize:none;"></textarea>
+                <label style="font-size:0.85em; color:#94a3b8; font-weight:bold;">Biography</label>
+                <textarea id="prof-bio" placeholder="Write something about yourself..." style="width:100%; padding:10px; background:#090d16; border:1px solid #334155; border-radius:10px; color:#fff; margin-bottom:16px; margin-top:4px; height: 70px; resize:none;"></textarea>
                 
-                <button class="auth-btn" style="padding:12px;" onclick="saveProfile()">حفظ التعديلات 💾</button>
+                <button class="auth-btn" style="padding:12px;" onclick="saveProfile()">Save Changes</button>
             </div>
         </div>
 
         <div class="page-content" id="page-blocklist">
-            <h3>🚫 Blocklist Management</h3>
+            <h3 style="font-weight:700;">Blocked Users</h3>
             <div id="blocklist-container" style="margin-top:12px;"></div>
         </div>
 
@@ -264,7 +258,6 @@
         let mediaRecorder = null;
         let audioChunks = [];
 
-        // دالة فتح وإغلاق القائمة الجانبية عبر الزر
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar-menu');
             sidebar.classList.toggle('open');
@@ -289,11 +282,11 @@
             const errBox = document.getElementById('auth-err-msg');
             
             if(!u || !p) {
-                errBox.innerText = "الرجاء إدخال اسم المستخدم وكلمة المرور";
+                errBox.innerText = "Username and password required";
                 return;
             }
 
-            errBox.innerText = "جاري تسجيل الدخول...";
+            errBox.innerText = "Authenticating...";
 
             try {
                 const res = await fetch('/api/login', {
@@ -306,10 +299,10 @@
                     errBox.innerText = "";
                     initUserSession(data.user);
                 } else {
-                    errBox.innerText = data.detail || "خطأ في معلومات الدخول";
+                    errBox.innerText = data.detail || "Invalid credentials";
                 }
             } catch(err) {
-                errBox.innerText = "فشل الاتصال بالخادم، تأكد من الإنترنت أو أعِد المحاولة";
+                errBox.innerText = "Connection failed";
             }
         }
 
@@ -319,11 +312,11 @@
             const errBox = document.getElementById('auth-err-msg');
             
             if(!u || !p) {
-                errBox.innerText = "الرجاء تعبئة الحقول المطلوبة";
+                errBox.innerText = "All fields are required";
                 return;
             }
 
-            errBox.innerText = "جاري إنشاء الحساب...";
+            errBox.innerText = "Creating account...";
 
             try {
                 const res = await fetch('/api/register', {
@@ -334,13 +327,13 @@
                 const data = await res.json();
                 if(data.status === "success") {
                     errBox.innerText = "";
-                    alert(`تم التسجيل بنجاح! ID الخاص بك: ${data.user_id}`);
+                    alert(`Account created successfully! ID: ${data.user_id}`);
                     switchAuthTab('login');
                 } else {
-                    errBox.innerText = data.detail || "خطأ في التسجيل";
+                    errBox.innerText = data.detail || "Registration failed";
                 }
             } catch(err) {
-                errBox.innerText = "فشل الاتصال بالخادم";
+                errBox.innerText = "Connection failed";
             }
         }
 
@@ -398,28 +391,30 @@
 
         function getUserDetails(username) {
             const u = allUsersCache.find(x => x.username === username);
+            const initial = username ? username.charAt(0).toUpperCase() : 'U';
             if(u) {
                 return {
                     name: u.display_name || u.username,
-                    avatarHtml: u.avatar ? `<img src="${u.avatar}">` : '👤',
-                    bio: u.bio || 'لا توجد نبذة.',
+                    avatarHtml: u.avatar ? `<img src="${u.avatar}">` : initial,
+                    bio: u.bio || 'No bio provided.',
                     id: u.user_id
                 };
             }
-            return { name: username, avatarHtml: '👤', bio: '', id: '' };
+            return { name: username, avatarHtml: initial, bio: '', id: '' };
         }
 
         function updateUIProfile() {
             const dispName = userData.display_name || userData.username;
+            const initial = userData.username ? userData.username.charAt(0).toUpperCase() : 'U';
             document.getElementById('user-name-disp').innerText = dispName;
             document.getElementById('user-username-disp').innerText = `@${userData.username}`;
-            document.getElementById('user-status-disp').innerText = `"${userData.status_text || 'Available'}"`;
+            document.getElementById('user-status-disp').innerText = userData.status_text || 'Available';
             
             document.getElementById('prof-display-name').value = dispName;
             document.getElementById('prof-status').value = userData.status_text || '';
             document.getElementById('prof-bio').value = userData.bio || '';
 
-            const avatarHtml = userData.avatar ? `<img src="${userData.avatar}">` : '👤';
+            const avatarHtml = userData.avatar ? `<img src="${userData.avatar}">` : initial;
             document.getElementById('user-avatar-disp').innerHTML = avatarHtml;
             document.getElementById('prof-avatar-preview').innerHTML = avatarHtml;
 
@@ -456,7 +451,7 @@
                 body: JSON.stringify({username: userData.username, updates: updates})
             });
             if(res.ok) {
-                alert("تم تحديث البروفايل بنجاح! ✅");
+                alert("Profile updated successfully.");
                 pendingAvatarBase64 = null;
                 refreshUserData();
             }
@@ -476,7 +471,7 @@
             box.innerHTML = "";
             const flist = userData.friends ? [...new Set(userData.friends)] : [];
             if(flist.length === 0) {
-                box.innerHTML = "<p style='color:#94a3b8; font-size:0.8em; text-align:center; padding:10px;'>لا يوجد أصدقاء.</p>";
+                box.innerHTML = "<p style='color:#94a3b8; font-size:0.8em; text-align:center; padding:10px;'>No active contacts.</p>";
             } else {
                 flist.forEach(f => {
                     const activeCls = (selectedChatFriend === f) ? "active" : "";
@@ -496,10 +491,10 @@
             if(el) el.classList.add('active');
 
             const u = getUserDetails(friendName);
-            document.getElementById('target-disp-name').innerHTML = `${u.name} <button class="auth-btn" style="padding:2px 6px; width:auto; font-size:0.65em; margin-right:6px; background:#1e293b;" onclick="showProfileCard('${friendName}')">👁️</button>`;
+            document.getElementById('target-disp-name').innerHTML = `${u.name} <button class="auth-btn" style="padding:2px 6px; width:auto; font-size:0.65em; margin-right:6px; background:#1e293b;" onclick="showProfileCard('${friendName}')">View</button>`;
             
             const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML = "<p style='color:#94a3b8; text-align:center;'>جاري تحميل السجل...</p>";
+            chatBox.innerHTML = "<p style='color:#94a3b8; text-align:center;'>Loading message history...</p>";
 
             try {
                 const res = await fetch(`/api/get_messages/${userData.username}/${friendName}`);
@@ -510,13 +505,13 @@
                     const uniqueMessages = Array.from(new Map(data.messages.map(m => [m.id, m])).values());
                     
                     uniqueMessages.forEach(m => {
-                        appendParsedBubble(m.id, m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'الآن');
+                        appendParsedBubble(m.id, m.sender, m.content, m.created_at ? m.created_at.substring(11, 16) : 'Now');
                     });
                 } else {
-                    chatBox.innerHTML = "<p style='color:#94a3b8; text-align:center;'>لا توجد رسائل سابقة.</p>";
+                    chatBox.innerHTML = "<p style='color:#94a3b8; text-align:center;'>No messages in this thread.</p>";
                 }
             } catch(e) {
-                chatBox.innerHTML = "<p style='color:#ef4444; text-align:center;'>خطأ في الاتصال.</p>";
+                chatBox.innerHTML = "<p style='color:#ef4444; text-align:center;'>Failed to retrieve history.</p>";
             }
         }
 
@@ -532,10 +527,10 @@
             const btn = document.getElementById('burn-btn');
             if(isBurnMode) {
                 btn.classList.add('active');
-                btn.title = "وضع الاحتراق مفعّل";
+                btn.title = "Self-destruct active";
             } else {
                 btn.classList.remove('active');
-                btn.title = "حرق تلقائي";
+                btn.title = "Normal message";
             }
         }
 
@@ -568,7 +563,7 @@
                     mediaRecorder.start();
                     micBtn.classList.add('recording');
                 } catch (err) {
-                    alert("تعذر الوصول إلى الميكروفون!");
+                    alert("Microphone access denied.");
                 }
             } else {
                 mediaRecorder.stop();
@@ -587,7 +582,7 @@
                     base64: e.target.result
                 };
                 const prev = document.getElementById('file-preview-name');
-                prev.innerText = `📁 تم إرفاق: ${file.name}`;
+                prev.innerText = `Attached: ${file.name}`;
                 prev.style.display = 'block';
             };
             reader.readAsDataURL(file);
@@ -597,7 +592,7 @@
             const input = document.getElementById("msg-input");
             const msg = input.value.trim();
 
-            if(!selectedChatFriend) return alert("اختر صديقاً من القائمة أولاً!");
+            if(!selectedChatFriend) return alert("Select a contact first.");
             if(!msg && !attachedFileData) return;
 
             const payload = {
@@ -653,7 +648,7 @@
                 } else if (fileType.startsWith("audio/")) {
                     fileHtml = `<br><audio controls src="${fileBase64}" style="width:190px; margin-top:6px;"></audio>`;
                 } else {
-                    fileHtml = `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.8em; display:inline-block; margin-top:6px;">📄 تنزيل ${fileName}</a>`;
+                    fileHtml = `<br><a href="${fileBase64}" download="${fileName}" style="color:#60a5fa; font-size:0.8em; display:inline-block; margin-top:6px;">Download ${fileName}</a>`;
                 }
             }
 
@@ -670,22 +665,22 @@
             if (isBurn) {
                 bubbleClass += " burn-bubble";
                 if (!isMine) {
-                    wrapper.innerHTML = `<div class="${bubbleClass}" onclick="burnAndReadMessage(this, '${msgId}', \`${textPart}\`, \`${fileHtml}\`)">🔥 رسالة محترقة (انقر للعرض)</div>`;
+                    wrapper.innerHTML = `<div class="${bubbleClass}" onclick="burnAndReadMessage(this, '${msgId}', \`${textPart}\`, \`${fileHtml}\`)">[Self-destruct message - Click to read]</div>`;
                     chatBox.appendChild(wrapper);
                     chatBox.scrollTop = chatBox.scrollHeight;
                     return;
                 } else {
-                    textPart = `🔥 [رسالة ذاتية الاحتراق مرسلة] ` + textPart;
+                    textPart = `[Self-destruct outgoing] ` + textPart;
                 }
             }
 
-            wrapper.innerHTML = `<div class="${bubbleClass}">${textPart}${fileHtml}<span style="font-size:0.6em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'الآن'}</span></div>`;
+            wrapper.innerHTML = `<div class="${bubbleClass}">${textPart}${fileHtml}<span style="font-size:0.6em; display:block; opacity:0.7; text-align:right; margin-top:4px;">${time || 'Now'}</span></div>`;
             chatBox.appendChild(wrapper);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         async function burnAndReadMessage(element, msgId, textPart, fileHtml) {
-            element.innerHTML = `${textPart}${fileHtml}<span style="font-size:0.6em; display:block; opacity:0.7; text-align:right; margin-top:4px; color:#fca5a5;">تم الحرق 💥</span>`;
+            element.innerHTML = `${textPart}${fileHtml}<span style="font-size:0.6em; display:block; opacity:0.7; text-align:right; margin-top:4px; color:#fca5a5;">Expired</span>`;
             element.style.cursor = "default";
             element.onclick = null;
 
@@ -715,9 +710,9 @@
                     const isPending = (userData.friend_requests || []).includes(u.username);
                     const ud = getUserDetails(u.username);
 
-                    let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 10px; font-size:0.85em;" onclick="sendReq('${u.username}')">➕ إضافة</button>`;
-                    if(isFriend) actionBtn = `<span style="color:#10b981; font-weight:bold; font-size:0.85em;">صديق ✅</span>`;
-                    else if(isPending) actionBtn = `<span style="color:#f59e0b; font-weight:bold; font-size:0.85em;">معلق ⏳</span>`;
+                    let actionBtn = `<button class="auth-btn" style="width:auto; padding:6px 10px; font-size:0.85em;" onclick="sendReq('${u.username}')">Add</button>`;
+                    if(isFriend) actionBtn = `<span style="color:#10b981; font-weight:bold; font-size:0.85em;">Connected</span>`;
+                    else if(isPending) actionBtn = `<span style="color:#f59e0b; font-weight:bold; font-size:0.85em;">Pending</span>`;
 
                     box.innerHTML += `
                     <div class="user-card">
@@ -729,7 +724,7 @@
                             </div>
                         </div>
                         <div style="display:flex; gap:4px; flex-shrink:0;">
-                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#1e293b; font-size:0.8em;" onclick="showProfileCard('${u.username}')">👁️</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#1e293b; font-size:0.8em;" onclick="showProfileCard('${u.username}')">View</button>
                             ${actionBtn}
                         </div>
                     </div>`;
@@ -748,7 +743,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: uname, updates: {friend_requests: reqs}})
             });
-            alert(`تم إرسال الطلب إلى ${uname}!`);
+            alert(`Connection request sent to ${uname}.`);
             refreshUserData();
         }
 
@@ -756,7 +751,7 @@
             const myfBox = document.getElementById('my-friends-tab-list');
             myfBox.innerHTML = "";
             const flist = userData.friends ? [...new Set(userData.friends)] : [];
-            if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>لا يوجد أصدقاء.</p>";
+            if(flist.length === 0) myfBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>No contacts found.</p>";
             else {
                 flist.forEach(f => {
                     const ud = getUserDetails(f);
@@ -767,10 +762,10 @@
                             <strong style="color:#f8fafc; font-size:0.9em;">${ud.name}</strong>
                         </div>
                         <div style="display:flex; gap:4px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#1e293b; font-size:0.8em;" onclick="showProfileCard('${f}')">👁️</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 10px; font-size:0.8em;" onclick="startChatFromFriends('${f}')">💬</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#ef4444; font-size:0.8em;" onclick="unfriend('${f}')">🗑️</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#ef4444; font-size:0.8em;" onclick="blockUser('${f}')">🚫</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#1e293b; font-size:0.8em;" onclick="showProfileCard('${f}')">View</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; font-size:0.8em;" onclick="startChatFromFriends('${f}')">Chat</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#7f1d1d; font-size:0.8em;" onclick="unfriend('${f}')">Remove</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#7f1d1d; font-size:0.8em;" onclick="blockUser('${f}')">Block</button>
                         </div>
                     </div>`;
                 });
@@ -779,7 +774,7 @@
             const reqBox = document.getElementById('requests-tab-list');
             reqBox.innerHTML = "";
             const reqs = userData.friend_requests ? [...new Set(userData.friend_requests)] : [];
-            if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>لا توجد طلبات معلقة.</p>";
+            if(reqs.length === 0) reqBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>No pending requests.</p>";
             else {
                 reqs.forEach(r => {
                     const ud = getUserDetails(r);
@@ -790,8 +785,8 @@
                             <strong style="color:#f8fafc; font-size:0.9em;">${ud.name}</strong>
                         </div>
                         <div style="display:flex; gap:4px;">
-                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#059669; font-size:0.8em;" onclick="acceptReq('${r}')">✅ قبول</button>
-                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#ef4444; font-size:0.8em;" onclick="declineReq('${r}')">❌ رفض</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#065f46; font-size:0.8em;" onclick="acceptReq('${r}')">Accept</button>
+                            <button class="auth-btn" style="width:auto; padding:6px 10px; background:#7f1d1d; font-size:0.8em;" onclick="declineReq('${r}')">Decline</button>
                         </div>
                     </div>`;
                 });
@@ -864,25 +859,21 @@
         }
 
         function renderBlocklist() {
-            .
             const bBox = document.getElementById('blocklist-container');
             if(!bBox) return;
             bBox.innerHTML = "";
             const blist = userData.blocked ? [...new Set(userData.blocked)] : [];
-            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>لا يوجد محظورين.</p>";
+            if(blist.length === 0) bBox.innerHTML = "<p style='color:#94a3b8; font-size:0.9em; text-align:center;'>No blocked users.</p>";
             else {
                 blist.forEach(b => {
                     const ud = getUserDetails(b);
                     bBox.innerHTML += `
-                    .user-card {
-                        background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-                    }
                     <div class="user-card">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <div class="small-avatar">${ud.avatarHtml}</div>
                             <strong style="color:#f8fafc; font-size:0.9em;">${ud.name}</strong>
                         </div>
-                        <button class="auth-btn" style="width:auto; padding:6px 10px; background:#059669; font-size:0.8em;" onclick="unblock('${b}')">✅ فك الحظر</button>
+                        <button class="auth-btn" style="width:auto; padding:6px 10px; background:#065f46; font-size:0.8em;" onclick="unblock('${b}')">Unblock</button>
                     </div>`;
                 });
             }
@@ -904,7 +895,6 @@
             document.getElementById('page-' + pageId).classList.add('active');
             if(btnEl) btnEl.classList.add('active');
             
-            // إغلاق القائمة الجانبية تلقائياً على الموبايل عند الانتقال لأي صفحة
             const sidebar = document.getElementById('sidebar-menu');
             sidebar.classList.remove('open');
 
