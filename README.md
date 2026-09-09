@@ -1,7 +1,7 @@
 # CYBER SECURE MESSENGER
 
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=Streamlit&logoColor=white)
+![Render](https://img.shields.io/badge/Render-%2346E3B7.svg?style=for-the-badge&logo=render&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 ![Encryption](https://img.shields.io/badge/Encryption-AES--256-blue?style=for-the-badge)
 
@@ -31,7 +31,7 @@ Cyber Secure Messenger is engineered to combine absolute privacy with modern mes
 ## Tech Stack
 
 - Methodology: Vibe Coding
-- Frontend / UI: Streamlit, Custom Responsive CSS
+- Frontend / UI: Render, Custom Responsive CSS
 - Backend and Database: Supabase (PostgreSQL Cloud Database)
 - Security and Cryptography: Python cryptography (Fernet/AES-256 equivalent), SHA-256 Hashing
 
@@ -47,12 +47,12 @@ Cyber Secure Messenger is engineered to combine absolute privacy with modern mes
    pip install -r requirements.txt
 
 3. Configure Secrets:
-   Create a .streamlit folder in the root directory, then create a secrets.toml file inside it with your credentials:
+   Create a .Render folder in the root directory, then create a secrets.toml file inside it with your credentials:
    SUPABASE_URL = "https://your-project.supabase.co"
    SUPABASE_KEY = "your-supabase-publishable-key"
 
 4. Launch the application:
-   streamlit run main.py
+   Render run main.py
 
 ---
 
